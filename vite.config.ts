@@ -10,6 +10,20 @@ export default defineConfig(async () => ({
   // Expose Tauri's build-time env (TAURI_ENV_PLATFORM etc.) to the app.
   envPrefix: ["VITE_", "TAURI_ENV_"],
 
+  build: {
+    // Keep the editor engine in its own chunk so the app chunk stays small.
+    rollupOptions: {
+      output: {
+        manualChunks(id: string) {
+          if (id.includes("node_modules/@codemirror") || id.includes("node_modules/@lezer")) {
+            return "codemirror";
+          }
+          return undefined;
+        },
+      },
+    },
+  },
+
   // Options for `tauri dev` / `tauri build`:
   // 1. don't hide Rust errors
   clearScreen: false,
