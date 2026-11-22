@@ -1,0 +1,98 @@
+/*
+ * Minimal styles for the empty window. The full token set from the canvas (syntax colors,
+ * radii, bundled JetBrains Mono) comes with the "Design tokens in code" card.
+ */
+:root {
+  /* Dark tint over the blurred desktop (blur radius is set natively in src-tauri/lib.rs). */
+  --glass-tint: rgba(12, 15, 26, 0.5);
+  --glass-panel: rgba(255, 255, 255, 0.05);
+  --hairline: rgba(255, 255, 255, 0.08);
+  --text: #e6e9f2;
+  --text-dim: #8a93a8;
+  --text-faint: #566078;
+  --accent: #7ee0c3;
+  --mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
+  --titlebar-height: 40px;
+  /* Room for the macOS traffic lights drawn over the title bar. */
+  --traffic-lights-width: 84px;
+
+  color-scheme: dark;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+/* Transparent so the native vibrancy shows through; the tint sits on .window. */
+body {
+  background: transparent;
+  color: var(--text);
+  font-family: var(--mono);
+  font-size: 13px;
+  -webkit-font-smoothing: antialiased;
+  user-select: none;
+}
+
+.window {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: var(--glass-tint);
+}
+
+.titlebar {
+  display: flex;
+  align-items: center;
+  height: var(--titlebar-height);
+  padding: 0 16px 0 var(--traffic-lights-width);
+  flex-shrink: 0;
+}
+
+.titlebar-title {
+  color: var(--text-dim);
+  font-size: 12px;
+}
+
+.empty-state {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border-top: 1px solid var(--hairline);
+}
+
+.empty-title {
+  margin: 0;
+  color: var(--text);
+}
+
+.empty-hint {
+  margin: 0;
+  color: var(--text-faint);
+  font-size: 12px;
+}
+
+.empty-hint code {
+  color: var(--accent);
+}
+
+.statusline {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  height: 28px;
+  padding: 0 16px;
+  background: var(--glass-panel);
+  color: var(--text-dim);
+  font-size: 12px;
+  flex-shrink: 0;
+}
+
+.statusline-dim {
+  color: var(--text-faint);
+}
