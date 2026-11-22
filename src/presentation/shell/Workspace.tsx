@@ -1,17 +1,19 @@
+import type { ReactNode } from "react";
 import { FolderIcon, OutlineIcon, SearchIcon } from "./icons";
 
 type Props = {
   treeOpen: boolean;
   pdfOpen: boolean;
   onHidePdf: () => void;
+  /** What fills the middle column (the editor). */
+  source: ReactNode;
 };
 
 /**
  * The three columns under the title bar (designs B1–B3): file tree (a rail when
- * collapsed), source, and PDF. Each pane is an empty placeholder until its own card
- * fills it in (file tree, editor, PDF preview).
+ * collapsed), source, and PDF. The tree and PDF are placeholders until their own cards.
  */
-export function Workspace({ treeOpen, pdfOpen, onHidePdf }: Props) {
+export function Workspace({ treeOpen, pdfOpen, onHidePdf, source }: Props) {
   return (
     <div className="workspace">
       {treeOpen ? (
@@ -33,12 +35,7 @@ export function Workspace({ treeOpen, pdfOpen, onHidePdf }: Props) {
         </aside>
       )}
 
-      <main className="source-pane">
-        <p className="empty-title">No project open</p>
-        <p className="pane-empty">
-          Open a folder with your <code>.tex</code> files to start.
-        </p>
-      </main>
+      <main className="source-pane">{source}</main>
 
       {pdfOpen && (
         <section className="pdf-pane" aria-label="PDF preview">

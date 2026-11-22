@@ -16,6 +16,12 @@
   --ok: #7ee0a0;
   --warn: #f2c879;
   --error: #ff7a85;
+  /* Syntax colors (canvas tokens syn-*). */
+  --syn-command: #8ab4ff;
+  --syn-env: #c79bff;
+  --syn-math: #7ee0c3;
+  --syn-brace: #f2c879;
+  --syn-comment: #6f7a94;
   --mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
   --titlebar-height: 40px;
   /* Room for the macOS traffic lights drawn over the title bar. */
@@ -209,14 +215,14 @@ button {
   min-width: 0;
   display: flex;
   flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
 }
 
-.empty-title {
-  margin: 0;
-  color: var(--text);
+/* The editor fills the source pane; text in it must stay selectable. */
+.editor {
+  flex: 1;
+  min-height: 0;
+  user-select: text;
+  -webkit-user-select: text;
 }
 
 .pdf-pane {

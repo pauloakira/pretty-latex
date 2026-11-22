@@ -1,3 +1,4 @@
+import { EditorView } from "@codemirror/view";
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -40,7 +41,19 @@ describe("App shell", () => {
     expect(q('[aria-label="File tree (collapsed)"]')).not.toBeNull();
     expect(q('[aria-label="File tree"]')).toBeNull();
     expect(q('[aria-label="PDF preview"]')).not.toBeNull();
-    expect(container.textContent).toContain("No project open");
+  });
+
+  it("shows the sample document in the editor as a scratch tab", () => {
+    expect(q(".source-pane .cm-editor")).not.toBeNull();
+    expect(q(".cm-content")?.textContent).toContain("\\section{Introduction}");
+    expect(q('.tab[aria-current="page"]')?.textContent).toBe("scratch.tex");
+  });
+
+  it("marks the scratch tab unsaved after an edit", () => {
+    const view = EditorView.findFromDOM(q(".cm-editor") as HTMLElement);
+    expect(q(".tab-dirty")).toBeNull();
+    act(() => view?.dispatch({ changes: { from: 0, insert: "% hi\n" } }));
+    expect(q(".tab-dirty")).not.toBeNull();
   });
 
   it("shows the idle build badge", () => {
