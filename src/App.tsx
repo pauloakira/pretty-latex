@@ -1,29 +1,47 @@
-/**
- * The empty glass window: title bar, an empty editor area and the status line.
- * Layout follows design "B1 · Split Glass" on the Pretty-Latex canvas; the editor, file
- * tree and PDF pane arrive in their own cards.
- */
+import { useEffect, useReducer } from "react";
+import { initialLayout, layoutReducer, shortcutToLayoutAction } from "./application/layout";
+import type { BuildStatus } from "./domain/build";
+import type { Tab } from "./domain/tabs";
+import { StatusLine } from "./presentation/shell/StatusLine";
+import { TitleBar } from "./presentation/shell/TitleBar";
+import { Workspace } from "./presentation/shell/Workspace";
+
+// Nothing opens files or builds yet; these become real state in later cards.
+const NO_TABS: Tab[] = [];
+const IDLE: BuildStatus = { kind: "idle" };
+
+/** The glass window shell (design B1): title bar, panes, status line. */
 export default function App() {
+  const [layout, dispatch] = useReducer(layoutReducer, initialLayout);
+
+  useEffect(() => {
+    function onKeyDown(event: KeyboardEvent) {
+      const action = shortcutToLayoutAction(event);
+      if (!action) return;
+      event.preventDefault();
+      dispatch(action);
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, []);
+
   return (
     <div className="window">
-      {/* The whole bar drags the window; macOS draws the traffic lights over its left end. */}
-      <header className="titlebar" data-tauri-drag-region>
-        <span className="titlebar-title" data-tauri-drag-region>
-          pretty-latex
-        </span>
-      </header>
-
-      <main className="empty-state">
-        <p className="empty-title">No project open</p>
-        <p className="empty-hint">
-          Open a folder with your <code>.tex</code> files to start.
-        </p>
-      </main>
-
-      <footer className="statusline" role="status">
-        <span>ready</span>
-        <span className="statusline-dim">⌘O open folder</span>
-      </footer>
+      <TitleBar
+        tabs={NO_TABS}
+        activeTabId={null}
+        build={IDLE}
+        treeOpen={layout.treeOpen}
+        pdfOpen={layout.pdfOpen}
+        onToggleTree={() => dispatch({ type: "toggleTree" })}
+        onTogglePdf={() => dispatch({ type: "togglePdf" })}
+      />
+      <Workspace
+        treeOpen={layout.treeOpen}
+        pdfOpen={layout.pdfOpen}
+        onHidePdf={() => dispatch({ type: "togglePdf" })}
+      />
+      <StatusLine pdfOpen={layout.pdfOpen} />
     </div>
   );
 }

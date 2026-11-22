@@ -1,20 +1,28 @@
 /*
- * Minimal styles for the empty window. The full token set from the canvas (syntax colors,
- * radii, bundled JetBrains Mono) comes with the "Design tokens in code" card.
+ * Shell styles (design B · Split Glass). The full token set (syntax colors, bundled
+ * JetBrains Mono) comes with the "Design tokens in code" card.
  */
 :root {
   /* Dark tint over the blurred desktop (blur radius is set natively in src-tauri/lib.rs). */
   --glass-tint: rgba(12, 15, 26, 0.5);
   --glass-panel: rgba(255, 255, 255, 0.05);
+  --glass-raised: rgba(255, 255, 255, 0.08);
+  --glass-shade: rgba(0, 0, 0, 0.16);
   --hairline: rgba(255, 255, 255, 0.08);
   --text: #e6e9f2;
   --text-dim: #8a93a8;
-  --text-faint: #566078;
+  --text-faint: #6a7590;
   --accent: #7ee0c3;
+  --ok: #7ee0a0;
+  --warn: #f2c879;
+  --error: #ff7a85;
   --mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
   --titlebar-height: 40px;
   /* Room for the macOS traffic lights drawn over the title bar. */
   --traffic-lights-width: 84px;
+  --rail-width: 44px;
+  --tree-width: 232px;
+  --pdf-width: 540px;
 
   color-scheme: dark;
 }
@@ -26,7 +34,7 @@ body,
   margin: 0;
 }
 
-/* Transparent so the native vibrancy shows through; the tint sits on .window. */
+/* Transparent so the blurred desktop shows through; the tint sits on .window. */
 body {
   background: transparent;
   color: var(--text);
@@ -36,6 +44,11 @@ body {
   user-select: none;
 }
 
+button {
+  font: inherit;
+  color: inherit;
+}
+
 .window {
   display: flex;
   flex-direction: column;
@@ -43,27 +56,162 @@ body {
   background: var(--glass-tint);
 }
 
+/* ── Title bar ─────────────────────────────────────────────── */
+
 .titlebar {
   display: flex;
   align-items: center;
+  gap: 16px;
   height: var(--titlebar-height);
-  padding: 0 16px 0 var(--traffic-lights-width);
+  padding: 0 12px 0 var(--traffic-lights-width);
   flex-shrink: 0;
 }
 
-.titlebar-title {
+.icon-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 22px;
+  padding: 0;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
   color: var(--text-dim);
+  cursor: default;
+}
+
+.icon-button:hover {
+  background: var(--glass-panel);
+  color: var(--text);
+}
+
+.icon-button[aria-pressed="true"] {
+  background: var(--glass-raised);
+  color: var(--text);
+}
+
+.tabs {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  height: 100%;
+  overflow: hidden;
+}
+
+.tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 6px;
+  color: var(--text-faint);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.tab-active {
+  background: var(--glass-raised);
+  color: var(--text);
+}
+
+.tab-dirty {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--warn);
+}
+
+.build-badge {
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.build-neutral {
+  color: var(--text-faint);
+}
+.build-busy {
+  color: var(--warn);
+}
+.build-ok {
+  color: var(--ok);
+}
+.build-error {
+  color: var(--error);
+}
+
+/* ── Panes ─────────────────────────────────────────────────── */
+
+.workspace {
+  flex: 1;
+  display: flex;
+  min-height: 0;
+  border-top: 1px solid var(--hairline);
+}
+
+.tree-rail {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  width: var(--rail-width);
+  padding: 14px 0;
+  flex-shrink: 0;
+  background: var(--glass-shade);
+  border-right: 1px solid var(--hairline);
+}
+
+.rail-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  color: var(--text-faint);
+}
+
+.rail-icon-active {
+  background: var(--glass-panel);
+  color: var(--text);
+}
+
+.tree-panel {
+  width: var(--tree-width);
+  padding: 14px 18px;
+  flex-shrink: 0;
+  box-sizing: border-box;
+  background: var(--glass-shade);
+  border-right: 1px solid var(--hairline);
+}
+
+.pane-caption {
+  margin: 0 0 12px;
+  color: var(--text-faint);
+  font-size: 10px;
+  letter-spacing: 1.2px;
+}
+
+.pane-empty {
+  margin: 0;
+  color: var(--text-faint);
   font-size: 12px;
 }
 
-.empty-state {
+.pane-empty code {
+  color: var(--accent);
+}
+
+.source-pane {
   flex: 1;
+  min-width: 0;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   gap: 6px;
-  border-top: 1px solid var(--hairline);
 }
 
 .empty-title {
@@ -71,15 +219,55 @@ body {
   color: var(--text);
 }
 
-.empty-hint {
-  margin: 0;
-  color: var(--text-faint);
+.pdf-pane {
+  display: flex;
+  flex-direction: column;
+  width: var(--pdf-width);
+  flex-shrink: 0;
+  background: var(--glass-shade);
+  border-left: 1px solid var(--hairline);
+}
+
+.pdf-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 24px;
+  color: var(--text-dim);
   font-size: 12px;
 }
 
-.empty-hint code {
-  color: var(--accent);
+.pill-button {
+  display: inline-flex;
+  gap: 6px;
+  padding: 3px 8px;
+  border: 0;
+  border-radius: 5px;
+  background: var(--glass-panel);
+  color: var(--text-dim);
+  font-size: 11px;
+  cursor: default;
 }
+
+.pill-button:hover {
+  color: var(--text);
+}
+
+.pill-button kbd {
+  font: inherit;
+  color: var(--text-faint);
+}
+
+.pdf-empty {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  text-align: center;
+}
+
+/* ── Status line ───────────────────────────────────────────── */
 
 .statusline {
   display: flex;
