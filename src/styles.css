@@ -358,8 +358,109 @@ button {
   flex-direction: column;
   width: var(--pdf-width);
   flex-shrink: 0;
+  min-height: 0;
   background: var(--glass-shade);
   border-left: 1px solid var(--hairline);
+}
+
+/* The PDF column's left edge: a few pixels wide to grab, the hairline stays the look. */
+.pdf-resizer {
+  width: 6px;
+  margin-right: -6px;
+  position: relative;
+  z-index: 2;
+  flex-shrink: 0;
+  cursor: col-resize;
+}
+
+.pdf-resizer:hover,
+.pdf-resizer:active {
+  background: linear-gradient(to right, transparent 2px, var(--accent) 2px, var(--accent) 3px, transparent 3px);
+  opacity: 0.6;
+}
+
+.pdf-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+.pdf-controls {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--text-faint);
+  white-space: nowrap;
+}
+
+.pdf-controls span {
+  margin-right: 10px;
+}
+
+.pdf-controls button {
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text-faint);
+  font: inherit;
+  padding: 1px 5px;
+  cursor: default;
+}
+
+.pdf-controls button:hover {
+  color: var(--text);
+  background: var(--glass-panel);
+}
+
+.pdf-controls button[aria-pressed="true"] {
+  color: var(--text-dim);
+}
+
+.pdf-stage {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+}
+
+.pdf-host {
+  position: absolute;
+  inset: 0;
+}
+
+/* One layer per loaded PDF; a new build loads hidden under the shown one, then swaps. */
+.pdf-layer {
+  position: absolute;
+  inset: 0;
+  overflow: auto;
+}
+
+.pdf-layer-loading {
+  visibility: hidden;
+}
+
+.pdf-layer .pdfViewer {
+  padding: 4px 0 24px;
+}
+
+/* Paper on the darker glass (design B1): no pdf.js border, a soft drop shadow. */
+.pdf-layer .pdfViewer .page {
+  border: 0;
+  margin: 12px auto;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.pdf-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  margin: 0;
+  text-align: center;
 }
 
 .pdf-bar {
@@ -390,15 +491,6 @@ button {
 .pill-button kbd {
   font: inherit;
   color: var(--text-faint);
-}
-
-.pdf-empty {
-  flex: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 24px;
-  text-align: center;
 }
 
 /* ── Status line ───────────────────────────────────────────── */

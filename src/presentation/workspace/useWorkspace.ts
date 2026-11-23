@@ -191,6 +191,8 @@ export function useWorkspace(files: Files, onSaved?: (path: string, text: string
     active: activeDoc(documents),
     project,
     notice,
+    /** True once the last session is back (and on first launch, right away). */
+    restored,
     dirtyPaths,
     dispatch,
     openPath,

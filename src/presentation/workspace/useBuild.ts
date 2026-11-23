@@ -13,6 +13,8 @@ export function useBuild(builder: Builder) {
   const [status, setStatus] = useState<BuildStatus>({ kind: "idle" });
   const [diagnostics, setDiagnostics] = useState<Diagnostic[]>([]);
   const [pdf, setPdf] = useState<string | null>(null);
+  // Bumps with every PDF a build makes, so the pane reloads the same path.
+  const [pdfVersion, setPdfVersion] = useState(0);
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   // Only the latest request may update state; earlier ones finish into the void.
   const latest = useRef(0);
@@ -26,7 +28,10 @@ export function useBuild(builder: Builder) {
         if (id !== latest.current || outcome.kind === "cancelled") return;
         setStatus(statusAfter(outcome));
         setDiagnostics(outcome.diagnostics);
-        if (outcome.pdf) setPdf(outcome.pdf);
+        if (outcome.pdf) {
+          setPdf(outcome.pdf);
+          setPdfVersion((v) => v + 1);
+        }
       } catch (error) {
         if (id !== latest.current) return;
         setStatus({ kind: "unavailable", message: error instanceof Error ? error.message : String(error) });
@@ -46,5 +51,5 @@ export function useBuild(builder: Builder) {
     [run],
   );
 
-  return { status, diagnostics, pdf, request };
+  return { status, diagnostics, pdf, pdfVersion, request };
 }

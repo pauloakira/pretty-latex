@@ -39,6 +39,15 @@ pub fn write_text_file(path: String, contents: String) -> Result<(), String> {
     std::fs::write(&path, contents).map_err(|e| format!("Couldn't save {path}: {e}"))
 }
 
+/// A file's raw bytes (the built PDF). A raw IPC response reaches the frontend as an
+/// `ArrayBuffer`, not a JSON array of numbers, so a large PDF crosses the bridge cheaply.
+#[tauri::command]
+pub fn read_file_bytes(path: String) -> Result<tauri::ipc::Response, String> {
+    std::fs::read(&path)
+        .map(tauri::ipc::Response::new)
+        .map_err(|e| format!("Couldn't read {path}: {e}"))
+}
+
 /// The source files under `root`, folders first, then alphabetical. Folders with no
 /// source files in them are left out.
 #[tauri::command]
