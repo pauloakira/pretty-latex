@@ -82,3 +82,19 @@ the Mac App Store. Distribution is a signed, notarized `.dmg`, like pretty-markd
   scrolling stay with the webview.
 - **Fit** is pdf.js's "auto": the pane width, at most 125%, so the expanded full-window
   view (⇧⌘\, Esc leaves) shows a readable page.
+
+## D5 — Git: the git command line, commit only what's ticked (2026-11-23)
+
+- **Runs `git`** (PATH, then Homebrew, then `/usr/bin`) rather than a git library: the
+  user's config, ignore rules, hooks, SSH keys and keychain credentials apply as in the
+  terminal. `GIT_TERMINAL_PROMPT=0` makes a push that needs a password fail with git's
+  message instead of waiting on a prompt nobody can see.
+- **The repository** is the one containing the open folder (or the active file);
+  `git rev-parse --show-toplevel` finds it from any subfolder. Not a repository: no
+  git icon.
+- **Commit** stages and commits exactly the ticked files (`git add -A -- paths` then
+  `git commit -- paths`), so anything else already staged stays out. New files are
+  listed one by one (`--untracked-files=all`). Files are what's on disk: unsaved editor
+  changes aren't included, and the panel says so.
+- **Push** pushes the current branch; its first push sets the upstream on `origin` (or the
+  only remote). A failed push after a good commit keeps the commit and says so.
