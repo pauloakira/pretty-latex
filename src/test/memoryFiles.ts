@@ -1,5 +1,5 @@
 import { vi } from "vitest";
-import type { Files } from "../domain/files";
+import type { Files, UnsavedAnswer } from "../domain/files";
 import type { ProjectEntry, Session } from "../domain/project";
 
 /**
@@ -19,7 +19,12 @@ export function memoryFiles(initial: Record<string, string> = {}, session: Sessi
     openRequest: null as ((paths: string[]) => void) | null,
     /** Another window that has this folder open. */
     otherWindowRoot: null as string | null,
-    closeWindowAnswer: true,
+    /** What the Save / Don't Save / Cancel question answers. */
+    unsavedAnswer: "cancel" as UnsavedAnswer,
+    closeRequested: null as (() => Promise<boolean>) | null,
+    quitRequested: null as (() => void) | null,
+    /** Set when the window really closed (its close handler said yes). */
+    windowClosed: false,
   };
 
   const listProject = (root: string): ProjectEntry[] => {
@@ -69,8 +74,25 @@ export function memoryFiles(initial: Record<string, string> = {}, session: Sessi
     openWindow: vi.fn(async (_folder: string | null) => undefined),
     setWindowProject: vi.fn(async (_root: string | null) => undefined),
     focusProjectWindow: vi.fn(async (root: string) => root === state.otherWindowRoot),
-    confirmCloseWindow: vi.fn(async (_unsaved: number) => state.closeWindowAnswer),
-    closeWindow: vi.fn(async () => undefined),
+    askUnsaved: vi.fn(async (_titles: string[], _quitting: boolean) => state.unsavedAnswer),
+    // Like Tauri: the close-requested handler decides whether the window goes.
+    closeWindow: vi.fn(async () => {
+      state.windowClosed = state.closeRequested ? await state.closeRequested() : true;
+    }),
+    onCloseRequested: vi.fn(async (handler: () => Promise<boolean>) => {
+      state.closeRequested = handler;
+      return () => {
+        state.closeRequested = null;
+      };
+    }),
+    onQuitRequested: vi.fn(async (handler: () => void) => {
+      state.quitRequested = handler;
+      return () => {
+        state.quitRequested = null;
+      };
+    }),
+    continueQuit: vi.fn(async () => undefined),
+    setUnsavedCount: vi.fn(async (_count: number) => undefined),
   } satisfies Files;
 
   return { files, disk, state };

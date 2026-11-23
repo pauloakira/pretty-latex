@@ -127,3 +127,16 @@ the Mac App Store. Distribution is a signed, notarized `.dmg`, like pretty-markd
   on the scrolling layer, not inside the page, since pdf.js clears pages it redraws.
 - **The tool** comes with every TeX install and reads the `.synctex.gz` latexmk already
   writes (`-synctex=1`), so there's no SyncTeX parser of our own to maintain.
+
+## D8 — Asking about unsaved files on close and quit (2026-11-23)
+
+- **Closing a window** (red button, ⇧⌘W, Window › Close) goes through the webview's
+  `onCloseRequested`. With unsaved files it asks **Save / Don't Save / Cancel**. Save writes
+  every unsaved file, asking where to put new ones; a cancelled save dialog keeps the
+  window open.
+- **⌘Q:** AppKit's standard Quit ends the app without an event tao passes on, so the app
+  menu's Quit is our own item. Each window reports how many unsaved files it has. Quit
+  asks those windows one at a time, the focused one first. Each answers by continuing the
+  quit or, on Cancel, stopping it. With nothing unsaved the app quits at once.
+- **Not covered:** Quit from the Dock menu and logging out still go straight to AppKit
+  and don't ask.

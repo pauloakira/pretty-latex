@@ -548,14 +548,66 @@ describe("windows", () => {
     const fake = await mount({ "/p/main.tex": "x" });
     await press("W", { shiftKey: true });
     // The first-launch sample is clean: no question.
-    expect(fake.files.confirmCloseWindow).not.toHaveBeenCalled();
-    expect(fake.files.closeWindow).toHaveBeenCalledTimes(1);
+    expect(fake.files.askUnsaved).not.toHaveBeenCalled();
+    expect(fake.state.windowClosed).toBe(true);
 
     await type("edit");
-    fake.state.closeWindowAnswer = false;
+    fake.state.unsavedAnswer = "cancel";
     await press("W", { shiftKey: true });
-    expect(fake.files.confirmCloseWindow).toHaveBeenCalledWith(1);
-    expect(fake.files.closeWindow).toHaveBeenCalledTimes(1);
+    expect(fake.files.askUnsaved).toHaveBeenCalledWith(["untitled.tex"], false);
+    expect(fake.state.windowClosed).toBe(false);
+  });
+
+  it("saves the unsaved files when closing the window says Save", async () => {
+    const fake = await mount({ "/p/a.tex": "a" }, { version: 1, project: "/p", tabs: ["/p/a.tex"], active: "/p/a.tex" });
+    await type("more ");
+    fake.state.unsavedAnswer = "save";
+    // The red button: Tauri runs the close-requested handler.
+    await act(async () => void (await fake.files.closeWindow()));
+    expect(fake.disk.get("/p/a.tex")).toBe("amore ");
+    expect(fake.state.windowClosed).toBe(true);
+  });
+
+  it("closes without writing on Don't Save", async () => {
+    const fake = await mount({ "/p/a.tex": "a" }, { version: 1, project: "/p", tabs: ["/p/a.tex"], active: "/p/a.tex" });
+    await type("more ");
+    fake.state.unsavedAnswer = "discard";
+    await act(async () => void (await fake.files.closeWindow()));
+    expect(fake.disk.get("/p/a.tex")).toBe("a");
+    expect(fake.state.windowClosed).toBe(true);
+  });
+
+  it("stays open when Save asks where to put a new file and that's cancelled", async () => {
+    const fake = await mount({ "/p/main.tex": "x" });
+    await type("draft ");
+    fake.state.unsavedAnswer = "save";
+    fake.state.nextSavePath = null;
+    await act(async () => void (await fake.files.closeWindow()));
+    expect(fake.files.pickSavePath).toHaveBeenCalled();
+    expect(fake.state.windowClosed).toBe(false);
+  });
+
+  it("tells the app how many files are unsaved, for ⌘Q", async () => {
+    const fake = await mount({ "/p/a.tex": "a" }, { version: 1, project: "/p", tabs: ["/p/a.tex"], active: "/p/a.tex" });
+    expect(fake.files.setUnsavedCount).toHaveBeenLastCalledWith(0);
+    await type("x");
+    expect(fake.files.setUnsavedCount).toHaveBeenLastCalledWith(1);
+  });
+
+  it("on ⌘Q, asks about unsaved files and lets the quit go on only after Save or Don't Save", async () => {
+    const fake = await mount({ "/p/a.tex": "a" }, { version: 1, project: "/p", tabs: ["/p/a.tex"], active: "/p/a.tex" });
+    await type("x");
+    const quit = async () => act(async () => fake.state.quitRequested?.());
+
+    fake.state.unsavedAnswer = "cancel";
+    await quit();
+    expect(fake.files.askUnsaved).toHaveBeenLastCalledWith(["a.tex"], true);
+    expect(fake.files.continueQuit).not.toHaveBeenCalled();
+
+    fake.state.unsavedAnswer = "save";
+    await quit();
+    expect(fake.disk.get("/p/a.tex")).toBe("ax");
+    expect(fake.files.continueQuit).toHaveBeenCalledTimes(1);
   });
 
   it("starts a new window empty, without the first-launch sample", async () => {

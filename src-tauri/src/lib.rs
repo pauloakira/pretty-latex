@@ -1,10 +1,11 @@
 //! Rust core of pretty-latex: the glass window, the file commands in `files`, the
 //! latexmk build in `latex`, jumping between source and PDF in `synctex`, commit/push in
-//! `git` and several windows in `windows`.
+//! `git`, several windows in `windows` and asking about unsaved files on ⌘Q in `quit`.
 
 mod files;
 mod git;
 mod latex;
+mod quit;
 mod synctex;
 mod windows;
 
@@ -53,6 +54,9 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .manage(windows::Windows::default())
         .manage(latex::Builds::default())
+        .manage(quit::Quit::default())
+        .menu(quit::menu)
+        .on_menu_event(quit::on_menu_event)
         .invoke_handler(tauri::generate_handler![
             files::read_text_file,
             files::write_text_file,
@@ -70,6 +74,8 @@ pub fn run() {
             git::git_status,
             git::git_commit,
             git::git_push,
+            quit::set_window_unsaved,
+            quit::continue_quit,
         ])
         .setup(|app| {
             if let Some(window) = app.get_webview_window(windows::MAIN) {
@@ -97,7 +103,10 @@ pub fn run() {
                 label,
                 event: tauri::WindowEvent::Destroyed,
                 ..
-            } => windows::on_window_destroyed(app, &label),
+            } => {
+                quit::forget(app, &label);
+                windows::on_window_destroyed(app, &label);
+            }
             _ => {}
         });
 }

@@ -1,6 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
-import { ask, open, save } from "@tauri-apps/plugin-dialog";
+import { ask, message, open, save } from "@tauri-apps/plugin-dialog";
 import type { Files } from "../../domain/files";
 import { parseSession, type ProjectEntry, type Session } from "../../domain/project";
 
@@ -65,13 +65,21 @@ export const tauriFiles: Files = {
   openWindow: (folder) => call<void>("open_window", { folder }),
   setWindowProject: (root) => call<void>("set_window_project", { root }),
   focusProjectWindow: (root) => call<boolean>("focus_project_window", { root }),
-  confirmCloseWindow(unsaved) {
-    return ask(`${unsaved === 1 ? "A file has" : `${unsaved} files have`} unsaved changes. Close the window without saving?`, {
+  async askUnsaved(titles, quitting) {
+    const what = titles.length === 1 ? `${titles[0]} has` : `${titles.length} files have`;
+    const answer = await message(`${what} unsaved changes. Save before ${quitting ? "quitting" : "closing"}?`, {
       title: "Unsaved changes",
       kind: "warning",
-      okLabel: "Don't Save",
-      cancelLabel: "Cancel",
+      buttons: { yes: "Save", no: "Don't Save", cancel: "Cancel" },
     });
+    return answer === "Save" ? "save" : answer === "Don't Save" ? "discard" : "cancel";
   },
   closeWindow: () => getCurrentWebviewWindow().close(),
+  onCloseRequested: (handler) =>
+    getCurrentWebviewWindow().onCloseRequested(async (event) => {
+      if (!(await handler().catch(() => false))) event.preventDefault();
+    }),
+  onQuitRequested: (handler) => getCurrentWebviewWindow().listen("quit-requested", () => handler()),
+  continueQuit: () => call<void>("continue_quit"),
+  setUnsavedCount: (count) => call<void>("set_window_unsaved", { count }),
 };
