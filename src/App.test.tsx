@@ -515,3 +515,49 @@ describe("git panel", () => {
     expect(q(".git-warning")?.textContent).toContain("main.tex has unsaved changes");
   });
 });
+
+describe("windows", () => {
+  it("opens a new window with ⇧⌘N", async () => {
+    const fake = await mount();
+    await press("N", { shiftKey: true });
+    expect(fake.files.openWindow).toHaveBeenCalledWith(null);
+  });
+
+  it("tells the app this window's folder, for its title and Finder opens", async () => {
+    const fake = await mount({ "/p/main.tex": "x" });
+    expect(fake.files.setWindowProject).toHaveBeenLastCalledWith(null);
+    fake.state.nextFolder = "/p";
+    await press("o", { shiftKey: true });
+    expect(fake.files.setWindowProject).toHaveBeenLastCalledWith("/p");
+  });
+
+  it("goes to the window that already has a folder open instead of opening it twice", async () => {
+    const fake = await mount({ "/p/main.tex": "x" });
+    fake.state.otherWindowRoot = "/p";
+    fake.state.nextFolder = "/p";
+    await press("o", { shiftKey: true });
+    expect(fake.files.focusProjectWindow).toHaveBeenCalledWith("/p");
+    expect(fake.files.listProject).not.toHaveBeenCalled();
+    expect(q('[aria-label="File tree"]')).toBeNull();
+  });
+
+  it("closes the window with ⇧⌘W, asking first when something is unsaved", async () => {
+    const fake = await mount({ "/p/main.tex": "x" });
+    await press("W", { shiftKey: true });
+    // The first-launch sample is clean: no question.
+    expect(fake.files.confirmCloseWindow).not.toHaveBeenCalled();
+    expect(fake.files.closeWindow).toHaveBeenCalledTimes(1);
+
+    await type("edit");
+    fake.state.closeWindowAnswer = false;
+    await press("W", { shiftKey: true });
+    expect(fake.files.confirmCloseWindow).toHaveBeenCalledWith(1);
+    expect(fake.files.closeWindow).toHaveBeenCalledTimes(1);
+  });
+
+  it("starts a new window empty, without the first-launch sample", async () => {
+    await mount({}, { version: 1, project: null, tabs: [], active: null });
+    expect(tabTitles()).toEqual([]);
+    expect(q(".source-empty")?.textContent).toContain("new window");
+  });
+});

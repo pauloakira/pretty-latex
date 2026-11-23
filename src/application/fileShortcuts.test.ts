@@ -21,13 +21,15 @@ describe("shortcutToFileCommand", () => {
     expect(shortcutToFileCommand(press("w"))).toBe("closeTab");
     expect(shortcutToFileCommand(press("}", { shiftKey: true }))).toBe("nextTab");
     expect(shortcutToFileCommand(press("{", { shiftKey: true }))).toBe("previousTab");
+    expect(shortcutToFileCommand(press("N", { shiftKey: true }))).toBe("newWindow");
+    expect(shortcutToFileCommand(press("W", { shiftKey: true }))).toBe("closeWindow");
   });
 
   it("ignores keys without ⌘ or with Control or Option", () => {
     expect(shortcutToFileCommand(press("s", { metaKey: false }))).toBeNull();
     expect(shortcutToFileCommand(press("s", { ctrlKey: true }))).toBeNull();
     expect(shortcutToFileCommand(press("s", { altKey: true }))).toBeNull();
-    expect(shortcutToFileCommand(press("w", { shiftKey: true }))).toBeNull();
+    expect(shortcutToFileCommand(press("x", { shiftKey: true }))).toBeNull();
     expect(shortcutToFileCommand(press("z"))).toBeNull();
   });
 });

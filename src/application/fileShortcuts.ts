@@ -8,11 +8,14 @@ export type FileCommand =
   | "saveAs"
   | "closeTab"
   | "nextTab"
-  | "previousTab";
+  | "previousTab"
+  | "newWindow"
+  | "closeWindow";
 
 /**
  * ⌘N new, ⌘O open file, ⇧⌘O open folder, ⌘S save, ⇧⌘S save as, ⌘W close tab,
- * ⇧⌘] / ⇧⌘[ next and previous tab. Control or Option held means it's not ours.
+ * ⇧⌘] / ⇧⌘[ next and previous tab, ⇧⌘N new window, ⇧⌘W close window. Control or
+ * Option held means it's not ours.
  */
 export function shortcutToFileCommand(press: KeyPress): FileCommand | null {
   if (!press.metaKey || press.ctrlKey || press.altKey) return null;
@@ -20,6 +23,8 @@ export function shortcutToFileCommand(press: KeyPress): FileCommand | null {
   if (press.shiftKey) {
     if (key === "o") return "openFolder";
     if (key === "s") return "saveAs";
+    if (key === "n") return "newWindow";
+    if (key === "w") return "closeWindow";
     // With Shift held, the bracket keys report braces.
     if (key === "]" || key === "}") return "nextTab";
     if (key === "[" || key === "{") return "previousTab";

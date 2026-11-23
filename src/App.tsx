@@ -113,6 +113,10 @@ export default function App({
         return dispatch({ type: "cycle", delta: 1 });
       case "previousTab":
         return dispatch({ type: "cycle", delta: -1 });
+      case "newWindow":
+        return files.openWindow(null).catch(() => undefined);
+      case "closeWindow":
+        return workspace.closeWindow();
     }
   };
   // The listener is added once; it calls whatever `run` is current.
@@ -256,6 +260,9 @@ function EmptySource() {
       </p>
       <p>
         <kbd>⌘N</kbd> new file
+      </p>
+      <p>
+        <kbd>⇧⌘N</kbd> new window
       </p>
     </div>
   );
