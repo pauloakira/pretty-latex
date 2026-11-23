@@ -41,6 +41,8 @@ export const tauriFiles: Files = {
   },
 
   readText: (path) => call<string>("read_text_file", { path }),
+  // A raw IPC response: arrives as an ArrayBuffer, not JSON.
+  readBytes: async (path) => new Uint8Array(await call<ArrayBuffer>("read_file_bytes", { path })),
   writeText: (path, text) => call<void>("write_text_file", { path, contents: text }),
   listProject: (root) => call<ProjectEntry[]>("list_project", { root }),
 

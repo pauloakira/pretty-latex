@@ -1,4 +1,7 @@
 import { useEffect, useMemo, useReducer, useRef } from "react";
+import { lazyPdfJs } from "./infrastructure/pdf/lazyPdfJs";
+import type { PdfDisplayFactory } from "./presentation/pdf/PdfDisplay";
+import { PdfPane } from "./presentation/pdf/PdfPane";
 import { shortcutToFileCommand, type FileCommand } from "./application/fileShortcuts";
 import { initialLayout, layoutReducer, shortcutToLayoutAction } from "./application/layout";
 import { isDirty } from "./application/documents";
@@ -21,10 +24,12 @@ type Props = {
   files?: Files;
   /** Runs latexmk; tests pass a scripted one. */
   builder?: Builder;
+  /** Draws the PDF; tests pass a fake (jsdom can't run pdf.js). */
+  createPdfDisplay?: PdfDisplayFactory;
 };
 
 /** The glass window (design B): title bar with tabs, file tree, editor, PDF, status line. */
-export default function App({ files = tauriFiles, builder = tauriBuilder }: Props) {
+export default function App({ files = tauriFiles, builder = tauriBuilder, createPdfDisplay = lazyPdfJs }: Props) {
   const [layout, dispatchLayout] = useReducer(layoutReducer, initialLayout);
   const build = useBuild(builder);
   // Read at save time, so the latest open folder decides the main file.
@@ -35,6 +40,16 @@ export default function App({ files = tauriFiles, builder = tauriBuilder }: Prop
   });
   const { documents, active, project, dispatch } = workspace;
   projectRef.current = project;
+
+  // Build once the last session is back, so its PDF shows without a save first.
+  const builtOnLaunch = useRef(false);
+  useEffect(() => {
+    if (!workspace.restored || builtOnLaunch.current) return;
+    builtOnLaunch.current = true;
+    if (!active?.path) return;
+    const main = mainFileFor(active.path, active.text, project);
+    if (main) build.request(main);
+  }, [workspace.restored, active, project, build]);
 
   const activeDiagnostics = useMemo(
     () => (active?.path ? build.diagnostics.filter((d) => d.file === active.path) : []),
@@ -81,8 +96,30 @@ export default function App({ files = tauriFiles, builder = tauriBuilder }: Prop
   const runRef = useRef(run);
   runRef.current = run;
 
+  // Expanded, the hidden editor mustn't keep the keyboard: the PDF takes it (arrows and
+  // space scroll), and the editor gets it back on the way out.
+  const wasExpanded = useRef(false);
+  useEffect(() => {
+    if (layout.pdfExpanded === wasExpanded.current) return;
+    wasExpanded.current = layout.pdfExpanded;
+    const target = layout.pdfExpanded
+      ? document.querySelector<HTMLElement>(".pdf-layer:not(.pdf-layer-loading)")
+      : document.querySelector<HTMLElement>(".cm-content");
+    if (target) target.focus();
+    else if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
+  }, [layout.pdfExpanded]);
+
+  // Esc leaves the expanded PDF; the listener reads the layout through a ref.
+  const expandedRef = useRef(layout.pdfExpanded);
+  expandedRef.current = layout.pdfExpanded;
+
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape" && expandedRef.current) {
+        event.preventDefault();
+        dispatchLayout({ type: "leaveExpandedPdf" });
+        return;
+      }
       const layoutAction = shortcutToLayoutAction(event);
       if (layoutAction) {
         event.preventDefault();
@@ -116,7 +153,18 @@ export default function App({ files = tauriFiles, builder = tauriBuilder }: Prop
       <Workspace
         treeOpen={layout.treeOpen}
         pdfOpen={layout.pdfOpen}
-        onHidePdf={() => dispatchLayout({ type: "togglePdf" })}
+        pdfExpanded={layout.pdfExpanded}
+        pdf={
+          <PdfPane
+            path={build.pdf}
+            version={build.pdfVersion}
+            readBytes={files.readBytes}
+            createDisplay={createPdfDisplay}
+            onHide={() => dispatchLayout({ type: "togglePdf" })}
+            expanded={layout.pdfExpanded}
+            onToggleExpanded={() => dispatchLayout({ type: "toggleExpandPdf" })}
+          />
+        }
         tree={
           <FileTree
             project={project}

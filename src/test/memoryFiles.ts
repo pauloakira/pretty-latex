@@ -43,6 +43,11 @@ export function memoryFiles(initial: Record<string, string> = {}, session: Sessi
       if (text === undefined) throw new Error(`Couldn't read ${path}`);
       return text;
     }),
+    readBytes: vi.fn(async (path: string) => {
+      const text = disk.get(path);
+      if (text === undefined) throw new Error(`Couldn't read ${path}`);
+      return new TextEncoder().encode(text);
+    }),
     writeText: vi.fn(async (path: string, text: string) => {
       disk.set(path, text);
     }),

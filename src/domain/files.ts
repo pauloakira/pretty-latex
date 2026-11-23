@@ -16,6 +16,8 @@ export interface Files {
   confirmDiscard(title: string): Promise<boolean>;
 
   readText(path: string): Promise<string>;
+  /** Raw bytes, for the built PDF. */
+  readBytes(path: string): Promise<Uint8Array>;
   writeText(path: string, text: string): Promise<void>;
   listProject(root: string): Promise<ProjectEntry[]>;
 

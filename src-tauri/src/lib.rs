@@ -63,6 +63,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             files::read_text_file,
             files::write_text_file,
+            files::read_file_bytes,
             files::list_project,
             files::read_session,
             files::write_session,

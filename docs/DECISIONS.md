@@ -65,3 +65,20 @@ the Mac App Store. Distribution is a signed, notarized `.dmg`, like pretty-markd
   "on input line N", put on the main file since the log doesn't say which file. Shown as
   gutter dots and wavy underlines (CodeMirror lint), the count in the badge and the first
   error in the status line.
+
+## D4 — PDF preview: pdf.js in layers, wheel glide (2026-11-22)
+
+- **pdf.js 6.4, legacy build**, loaded lazily (its own chunk), like pretty-markdown. Its
+  data files (cmaps, fonts, wasm, ICC) ship with the app via a Vite plugin.
+- **No-flash reload:** each build's PDF opens in a new layer under the shown one, hidden
+  but laid out; once the page in view has drawn, it swaps in at the same page and offset.
+- **Draws 4 pages ahead** of the scroll direction (1 behind) and frees pages further away,
+  the numbers pretty-markdown measured. Paused while a wheel glide runs.
+- **Wheel glide:** WKWebView applies each wheel delta as one jump, and a fast mouse wheel
+  with macOS acceleration sends ~375 px per event, 0–2 per frame, which read as choppy.
+  Wheel input on the PDF moves a target instead, and each frame closes a share of the gap
+  (70 ms ease, at most 20 ms counted per frame so a slow frame doesn't lurch). Measured in
+  the app: 11 scroll steps per burst before, one per frame after. Pinch and sideways
+  scrolling stay with the webview.
+- **Fit** is pdf.js's "auto": the pane width, at most 125%, so the expanded full-window
+  view (⇧⌘\, Esc leaves) shows a readable page.

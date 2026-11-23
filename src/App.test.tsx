@@ -6,6 +6,7 @@ import App from "./App";
 import type { Session } from "./domain/project";
 import { memoryFiles } from "./test/memoryFiles";
 import { scriptedBuilder } from "./test/scriptedBuilder";
+import { fakePdfDisplay } from "./test/fakePdfDisplay";
 import { BUILD_DEBOUNCE_MS } from "./presentation/workspace/useBuild";
 
 // Tell React this is a test environment so act() works without warnings.
@@ -45,14 +46,16 @@ const afterBuild = async () => {
 };
 
 let builds = scriptedBuilder();
+let pdfs = fakePdfDisplay();
 
 async function mount(disk: Record<string, string> = {}, session: Session | null = null) {
   const fake = memoryFiles(disk, session);
   builds = scriptedBuilder();
+  pdfs = fakePdfDisplay();
   container = document.createElement("div");
   document.body.appendChild(container);
   root = createRoot(container);
-  act(() => root.render(<App files={fake.files} builder={builds.builder} />));
+  act(() => root.render(<App files={fake.files} builder={builds.builder} createPdfDisplay={pdfs.create} />));
   await settle();
   return fake;
 }
@@ -298,5 +301,99 @@ describe("building", () => {
     await press("s");
     await afterBuild();
     expect(builds.builder.build).toHaveBeenCalledWith("/p/main.tex");
+  });
+});
+
+describe("PDF preview", () => {
+  const pdfBar = () => q(".pdf-bar")?.textContent;
+  const built = (pdf: string) => {
+    builds.state.next = { kind: "done", ok: true, seconds: 0.9, pdf, diagnostics: [] };
+  };
+
+  it("shows the built PDF with its page count, and reloads it after the next build", async () => {
+    const fake = await mount({ "/p/main.tex": "\\documentclass{article}", "/p/build/main.pdf": "%PDF-one" });
+    fake.state.nextFile = "/p/main.tex";
+    await press("o");
+    expect(q(".pdf-pane")?.textContent).toContain("appears here after the first build");
+    built("/p/build/main.pdf");
+    await press("s");
+    await afterBuild();
+    await settle();
+    expect(pdfs.state.shown).toEqual(["%PDF-one"]);
+    expect(pdfBar()).toContain("main.pdf");
+    expect(pdfBar()).toContain("p. 1 / 3");
+    expect(pdfBar()).toContain("80%");
+
+    fake.disk.set("/p/build/main.pdf", "%PDF-two");
+    await press("s");
+    await afterBuild();
+    await settle();
+    expect(pdfs.state.shown).toEqual(["%PDF-one", "%PDF-two"]);
+  });
+
+  it("zooms in and out in steps, and back to fit width", async () => {
+    const fake = await mount({ "/p/main.tex": "\\documentclass{article}", "/p/build/main.pdf": "%PDF" });
+    fake.state.nextFile = "/p/main.tex";
+    await press("o");
+    built("/p/build/main.pdf");
+    await press("s");
+    await afterBuild();
+    await settle();
+    act(() => button("Zoom in")?.click());
+    await settle();
+    expect(pdfBar()).toContain("90%");
+    act(() => button("Zoom out")?.click());
+    await settle();
+    act(() => button("Fit width")?.click());
+    await settle();
+    expect(pdfs.state.zooms).toEqual([0.9, 0.75, "page-width"]);
+    expect(button("Fit width")?.getAttribute("aria-pressed")).toBe("true");
+  });
+
+  it("builds on launch when tabs come back, so the PDF shows without saving", async () => {
+    await mount(
+      { "/p/main.tex": "\\documentclass{article}" },
+      { version: 1, project: null, tabs: ["/p/main.tex"], active: "/p/main.tex" },
+    );
+    await afterBuild();
+    expect(builds.builder.build).toHaveBeenCalledWith("/p/main.tex");
+  });
+
+  it("has a draggable left edge", async () => {
+    await mount();
+    expect(q('[role="separator"][aria-label="Resize PDF"]')).not.toBeNull();
+  });
+});
+
+describe("expanded PDF", () => {
+  const expanded = () => q(".workspace")?.classList.contains("workspace-pdf-expanded");
+
+  it("fills the window from the expand button or ⇧⌘\\, and Esc brings the editor back", async () => {
+    await mount();
+    act(() => button("Expand PDF")?.click());
+    expect(expanded()).toBe(true);
+    expect(q(".pdf-pane")?.textContent).toContain("Exit full screen");
+    // The editor stays mounted (its undo history survives) and lets go of the keyboard.
+    expect(q(".cm-editor")).not.toBeNull();
+    expect(document.activeElement?.closest(".cm-editor")).toBeNull();
+
+    act(() => {
+      window.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }));
+    });
+    expect(expanded()).toBe(false);
+    expect(document.activeElement?.closest(".cm-editor")).not.toBeNull();
+
+    await press("|", { shiftKey: true });
+    expect(expanded()).toBe(true);
+    await press("|", { shiftKey: true });
+    expect(expanded()).toBe(false);
+  });
+
+  it("leaves the expanded view when the PDF is hidden", async () => {
+    await mount();
+    act(() => button("Expand PDF")?.click());
+    await press("\\");
+    expect(expanded()).toBe(false);
+    expect(q('[aria-label="PDF preview"]')).toBeNull();
   });
 });
