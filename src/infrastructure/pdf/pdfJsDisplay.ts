@@ -13,6 +13,7 @@ import "pdfjs-dist/legacy/web/pdf_viewer.css";
 import type { PdfZoom } from "../../domain/pdf";
 import type { PdfDisplay, PdfDisplayFactory } from "../../presentation/pdf/PdfDisplay";
 import { preRenderPages } from "./preRender";
+import { createGlide, type Glide } from "./smoothWheel";
 
 GlobalWorkerOptions.workerSrc = workerUrl;
 
@@ -59,7 +60,12 @@ interface ViewerInternals {
  * Draws pages ahead of the scroll whenever pdf.js has nothing more urgent, through its own
  * rendering queue, and frees pages far from the view so memory stays bounded.
  */
-function keepPagesAhead(element: HTMLDivElement, viewer: PDFViewer, eventBus: EventBus): () => void {
+function keepPagesAhead(
+  element: HTMLDivElement,
+  viewer: PDFViewer,
+  eventBus: EventBus,
+  gliding: () => boolean,
+): () => void {
   const internals = viewer as unknown as ViewerInternals;
   let lastTop = element.scrollTop;
   let down = true;
@@ -67,6 +73,11 @@ function keepPagesAhead(element: HTMLDivElement, viewer: PDFViewer, eventBus: Ev
 
   const preRender = () => {
     timer = 0;
+    // Mid-glide the main thread moves the page every frame: keep it free, draw after.
+    if (gliding()) {
+      schedule();
+      return;
+    }
     const top = element.scrollTop;
     if (top !== lastTop) down = top > lastTop;
     lastTop = top;
@@ -131,6 +142,8 @@ type Layer = {
   eventBus: EventBus;
   pdf: PDFDocumentProxy;
   stopPreRender: () => void;
+  glide: Glide;
+  stopGlide: () => void;
 };
 
 /** Where the reader is: the page at the top, and how far down it (0–1). */
@@ -175,6 +188,7 @@ export const mountPdfJs: PdfDisplayFactory = async (container, options) => {
 
   const destroyLayer = (layer: Layer) => {
     layer.stopPreRender();
+    layer.stopGlide();
     layer.viewer.setDocument(null as unknown as PDFDocumentProxy);
     void layer.pdf.loadingTask.destroy();
     layer.element.remove();
@@ -216,7 +230,30 @@ export const mountPdfJs: PdfDisplayFactory = async (container, options) => {
       const linkService = new PDFLinkService({ eventBus });
       const viewer = new PDFViewer({ container: element, viewer: viewerElement, eventBus, linkService });
       linkService.setViewer(viewer);
-      const layer: Layer = { element, viewer, eventBus, pdf, stopPreRender: keepPagesAhead(element, viewer, eventBus) };
+      const glide = createGlide({
+        get: () => element.scrollTop,
+        set: (top) => {
+          element.scrollTop = top;
+        },
+        max: () => element.scrollHeight - element.clientHeight,
+        page: () => element.clientHeight,
+      });
+      const onWheel = (event: WheelEvent) => {
+        if (glide.wheel(event)) event.preventDefault();
+      };
+      element.addEventListener("wheel", onWheel, { passive: false });
+      const layer: Layer = {
+        element,
+        viewer,
+        eventBus,
+        pdf,
+        glide,
+        stopGlide: () => {
+          glide.stop();
+          element.removeEventListener("wheel", onWheel);
+        },
+        stopPreRender: keepPagesAhead(element, viewer, eventBus, glide.active),
+      };
 
       const spot = shown ? spotOf(shown) : { page: 1, offset: 0 };
       const ready = new Promise<void>((resolve) => {
