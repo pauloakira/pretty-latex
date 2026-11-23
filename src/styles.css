@@ -1,6 +1,7 @@
 /*
- * Shell styles (design B · Split Glass). The full token set (syntax colors, bundled
- * JetBrains Mono) comes with the "Design tokens in code" card.
+ * Shell styles (design B · Split Glass). The font is SF Mono, as in the macOS Terminal
+ * (the canvas uses JetBrains Mono); the full token set comes with the "Design tokens in
+ * code" card.
  */
 :root {
   /* Dark tint over the blurred desktop (blur radius is set natively in src-tauri/lib.rs). */
@@ -22,7 +23,8 @@
   --syn-math: #7ee0c3;
   --syn-brace: #f2c879;
   --syn-comment: #6f7a94;
-  --mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
+  /* SF Mono, the macOS Terminal font: ui-monospace is SF Mono in the webview. */
+  --mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, monospace;
   --titlebar-height: 40px;
   /* Room for the macOS traffic lights drawn over the title bar. */
   --traffic-lights-width: 84px;
