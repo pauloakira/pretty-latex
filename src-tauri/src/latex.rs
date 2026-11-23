@@ -236,7 +236,7 @@ fn output_file(out: &Path, stem: &str, ext: &str, since: Option<SystemTime>) -> 
 }
 
 /// The first folder with `latexmk` in it: the PATH, then the usual install places.
-fn find_tex_dir(path: Option<&std::ffi::OsStr>) -> Option<PathBuf> {
+pub(crate) fn find_tex_dir(path: Option<&std::ffi::OsStr>) -> Option<PathBuf> {
     let mut dirs: Vec<PathBuf> = path
         .map(|p| std::env::split_paths(p).collect())
         .unwrap_or_default();
