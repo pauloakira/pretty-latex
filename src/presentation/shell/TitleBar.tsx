@@ -11,6 +11,8 @@ type Props = {
   pdfOpen: boolean;
   onToggleTree: () => void;
   onTogglePdf: () => void;
+  onSelectTab: (id: string) => void;
+  onCloseTab: (id: string) => void;
 };
 
 /**
@@ -18,7 +20,17 @@ type Props = {
  * tabs don't carry the drag attribute, so clicks on them stay clicks. macOS draws the
  * traffic lights over the left padding.
  */
-export function TitleBar({ tabs, activeTabId, build, treeOpen, pdfOpen, onToggleTree, onTogglePdf }: Props) {
+export function TitleBar({
+  tabs,
+  activeTabId,
+  build,
+  treeOpen,
+  pdfOpen,
+  onToggleTree,
+  onTogglePdf,
+  onSelectTab,
+  onCloseTab,
+}: Props) {
   const badge = buildLabel(build);
 
   return (
@@ -38,11 +50,28 @@ export function TitleBar({ tabs, activeTabId, build, treeOpen, pdfOpen, onToggle
         {tabs.map((tab) => (
           <span
             key={tab.id}
-            className={tab.id === activeTabId ? "tab tab-active" : "tab"}
-            aria-current={tab.id === activeTabId ? "page" : undefined}
+            className={`tab${tab.id === activeTabId ? " tab-active" : ""}${tab.dirty ? " tab-is-dirty" : ""}`}
           >
-            {tab.title}
+            <button
+              type="button"
+              className="tab-title"
+              aria-current={tab.id === activeTabId ? "page" : undefined}
+              title={tab.path ?? "Not saved yet"}
+              onClick={() => onSelectTab(tab.id)}
+            >
+              {tab.title}
+            </button>
+            {/* The dot marks unsaved changes; hovering the tab swaps it for the close button. */}
             {tab.dirty && <span className="tab-dirty" aria-label="unsaved" />}
+            <button
+              type="button"
+              className="tab-close"
+              aria-label={`Close ${tab.title}`}
+              title="Close (⌘W)"
+              onClick={() => onCloseTab(tab.id)}
+            >
+              ×
+            </button>
           </span>
         ))}
       </nav>

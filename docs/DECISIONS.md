@@ -32,3 +32,17 @@ sits on top. Radius and tint are each one value.
 
 **Costs we accept:** the window needs `macOSPrivateApi` for transparency, which rules out
 the Mac App Store. Distribution is a signed, notarized `.dmg`, like pretty-markdown.
+
+## D2 — Files: our own Rust commands, one EditorState per tab (2026-11-22)
+
+- **Reading, writing and listing** go through small Rust commands (`src-tauri/src/files.rs`)
+  instead of Tauri's fs plugin: no path-scope configuration, and the folder listing (source
+  files only, hidden and build output left out, empty folders pruned, capped at 10k
+  entries) is one call. Dialogs use the dialog plugin.
+- **The file tree shows** `.tex .ltx .bib .sty .cls .bst .bbx .cbx .dtx .ins .txt .md`.
+  Build output and images stay hidden until there's a reason to show them.
+- **Tabs share one CodeMirror view**; each tab keeps its own `EditorState`, so switching
+  keeps text, selection and undo history. A file reopened after closing gets a new key and
+  a fresh state.
+- **The session** (`session.json` in the app's config folder) stores the open folder, the
+  saved tabs and the active one. Unsaved new files aren't restored.

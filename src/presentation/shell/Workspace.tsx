@@ -5,21 +5,22 @@ type Props = {
   treeOpen: boolean;
   pdfOpen: boolean;
   onHidePdf: () => void;
+  /** What fills the open file tree panel. */
+  tree: ReactNode;
   /** What fills the middle column (the editor). */
   source: ReactNode;
 };
 
 /**
  * The three columns under the title bar (designs B1–B3): file tree (a rail when
- * collapsed), source, and PDF. The tree and PDF are placeholders until their own cards.
+ * collapsed), source, and PDF. The PDF is a placeholder until the preview card.
  */
-export function Workspace({ treeOpen, pdfOpen, onHidePdf, source }: Props) {
+export function Workspace({ treeOpen, pdfOpen, onHidePdf, tree, source }: Props) {
   return (
     <div className="workspace">
       {treeOpen ? (
         <aside className="tree-panel" aria-label="File tree">
-          <p className="pane-caption">FILES</p>
-          <p className="pane-empty">No folder open</p>
+          {tree}
         </aside>
       ) : (
         <aside className="tree-rail" aria-label="File tree (collapsed)">

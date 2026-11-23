@@ -9,12 +9,14 @@ export type Layout = {
 
 export const initialLayout: Layout = { treeOpen: false, pdfOpen: true };
 
-export type LayoutAction = { type: "toggleTree" } | { type: "togglePdf" };
+export type LayoutAction = { type: "toggleTree" } | { type: "showTree" } | { type: "togglePdf" };
 
 export function layoutReducer(layout: Layout, action: LayoutAction): Layout {
   switch (action.type) {
     case "toggleTree":
       return { ...layout, treeOpen: !layout.treeOpen };
+    case "showTree":
+      return layout.treeOpen ? layout : { ...layout, treeOpen: true };
     case "togglePdf":
       return { ...layout, pdfOpen: !layout.pdfOpen };
   }

@@ -1,8 +1,20 @@
-//! Rust core of pretty-latex. For now it only opens the glass window; build (latexmk),
-//! file and SyncTeX commands land here in later cards.
+//! Rust core of pretty-latex: the glass window, and the file commands in `files`.
+//! Build (latexmk) and SyncTeX commands land here in later cards.
 
-#[cfg(target_os = "macos")]
-use tauri::Manager;
+mod files;
+
+use std::sync::Mutex;
+use tauri::{Emitter, Manager};
+
+/// Files the OS asked us to open (a double-clicked `.tex`) before the frontend was ready.
+/// The frontend drains them once on launch with `take_pending_files`.
+#[derive(Default)]
+struct PendingFiles(Mutex<Vec<String>>);
+
+#[tauri::command]
+fn take_pending_files(state: tauri::State<PendingFiles>) -> Vec<String> {
+    std::mem::take(&mut *state.0.lock().unwrap())
+}
 
 /// Blur radius (in points) behind the window, like Terminal's "Blur" slider. Small enough
 /// that the wallpaper stays recognisable through the glass; the tint lives in CSS.
@@ -44,6 +56,16 @@ mod glass {
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_dialog::init())
+        .manage(PendingFiles::default())
+        .invoke_handler(tauri::generate_handler![
+            files::read_text_file,
+            files::write_text_file,
+            files::list_project,
+            files::read_session,
+            files::write_session,
+            take_pending_files,
+        ])
         .setup(|_app| {
             #[cfg(target_os = "macos")]
             if let Some(window) = _app.get_webview_window("main") {
@@ -54,6 +76,26 @@ pub fn run() {
             }
             Ok(())
         })
-        .run(tauri::generate_context!())
-        .expect("error while running pretty-latex");
+        .build(tauri::generate_context!())
+        .expect("error while building pretty-latex")
+        .run(|app, event| {
+            // macOS hands over double-clicked files with this event, at launch and later.
+            if let tauri::RunEvent::Opened { urls } = event {
+                let paths: Vec<String> = urls
+                    .iter()
+                    .filter_map(|url| url.to_file_path().ok())
+                    .map(|path| path.to_string_lossy().into_owned())
+                    .collect();
+                if paths.is_empty() {
+                    return;
+                }
+                // Queue them for a frontend that isn't listening yet, and tell one that is.
+                app.state::<PendingFiles>()
+                    .0
+                    .lock()
+                    .unwrap()
+                    .extend(paths.clone());
+                let _ = app.emit("open-files", paths);
+            }
+        });
 }
