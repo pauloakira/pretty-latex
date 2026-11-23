@@ -6,7 +6,7 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Mutex;
-use std::time::Instant;
+use std::time::{Instant, SystemTime};
 
 /// Where TeX distributions put their binaries on macOS. Apps started from Finder don't get
 /// the shell's PATH, so `/Library/TeX/texbin` (MacTeX) is never on it.
@@ -116,6 +116,7 @@ async fn build(state: &Builds, main: String) -> Result<BuildOutcome, String> {
     }
 
     let started = Instant::now();
+    let started_at = SystemTime::now();
     let child = command
         .spawn()
         .map_err(|e| format!("Couldn't start latexmk: {e}"))?;
@@ -135,7 +136,10 @@ async fn build(state: &Builds, main: String) -> Result<BuildOutcome, String> {
         .map(|s| s.to_string_lossy().into_owned())
         .unwrap_or_default();
     let out = dir.join(OUT_DIR);
-    let log = std::fs::read_to_string(out.join(format!("{stem}.log"))).unwrap_or_default();
+    // A latexmkrc can rename the output ($jobname), so take what this build wrote.
+    let log = output_file(&out, &stem, "log", Some(started_at))
+        .and_then(|path| std::fs::read_to_string(path).ok())
+        .unwrap_or_default();
     let mut diagnostics = parse_log(&log, &dir, &main);
     let has_errors = diagnostics.iter().any(|d| d.severity == Severity::Error);
     if !output.status.success() && !has_errors {
@@ -158,13 +162,36 @@ async fn build(state: &Builds, main: String) -> Result<BuildOutcome, String> {
             },
         );
     }
-    let pdf = out.join(format!("{stem}.pdf"));
+    // A failed build leaves the last good PDF, which is still worth showing.
+    let pdf = output_file(&out, &stem, "pdf", Some(started_at))
+        .or_else(|| output_file(&out, &stem, "pdf", None));
     Ok(BuildOutcome::Done {
         ok: output.status.success() && !has_errors,
         seconds: started.elapsed().as_secs_f64(),
-        pdf: pdf.is_file().then(|| pdf.to_string_lossy().into_owned()),
+        pdf: pdf.map(|p| p.to_string_lossy().into_owned()),
         diagnostics,
     })
+}
+
+/// The `.ext` file in `out` for this build: `<stem>.ext` when it's there, else the newest
+/// one. With `since`, only files written after it count.
+fn output_file(out: &Path, stem: &str, ext: &str, since: Option<SystemTime>) -> Option<PathBuf> {
+    let fresh = |path: &Path| -> Option<SystemTime> {
+        let modified = path.metadata().ok()?.modified().ok()?;
+        since.is_none_or(|t| modified >= t).then_some(modified)
+    };
+    let named = out.join(format!("{stem}.{ext}"));
+    if fresh(&named).is_some() {
+        return Some(named);
+    }
+    std::fs::read_dir(out)
+        .ok()?
+        .flatten()
+        .map(|entry| entry.path())
+        .filter(|path| path.extension().is_some_and(|e| e == ext))
+        .filter_map(|path| fresh(&path).map(|modified| (modified, path)))
+        .max_by_key(|(modified, _)| *modified)
+        .map(|(_, path)| path)
 }
 
 /// The first folder with `latexmk` in it: the PATH, then the usual install places.
@@ -399,5 +426,50 @@ LaTeX Warning: There were undefined references.
             BuildOutcome::Cancelled => panic!("not cancelled"),
         }
         assert!(dir.path().join("build/doc.log").is_file());
+    }
+
+    #[test]
+    fn follows_a_jobname_set_in_latexmkrc() {
+        if find_tex_dir(std::env::var_os("PATH").as_deref()).is_none() {
+            return;
+        }
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(dir.path().join(".latexmkrc"), "$jobname = 'thesis';\n").unwrap();
+        let main = dir.path().join("main.tex");
+        std::fs::write(
+            &main,
+            "\\documentclass{article}\\begin{document}Hi\\end{document}\n",
+        )
+        .unwrap();
+        let state = Builds::default();
+        let outcome =
+            tauri::async_runtime::block_on(build(&state, main.to_string_lossy().into_owned()))
+                .unwrap();
+        match outcome {
+            BuildOutcome::Done { ok, pdf, .. } => {
+                assert!(ok);
+                assert!(pdf.unwrap().ends_with("build/thesis.pdf"));
+            }
+            BuildOutcome::Cancelled => panic!("not cancelled"),
+        }
+    }
+
+    #[test]
+    fn prefers_the_named_output_then_the_newest() {
+        let out = tempfile::tempdir().unwrap();
+        let o = out.path();
+        assert_eq!(output_file(o, "main", "pdf", None), None);
+        std::fs::write(o.join("thesis.pdf"), "").unwrap();
+        assert_eq!(
+            output_file(o, "main", "pdf", None),
+            Some(o.join("thesis.pdf"))
+        );
+        std::fs::write(o.join("main.pdf"), "").unwrap();
+        assert_eq!(
+            output_file(o, "main", "pdf", None),
+            Some(o.join("main.pdf"))
+        );
+        let later = SystemTime::now() + std::time::Duration::from_secs(60);
+        assert_eq!(output_file(o, "main", "pdf", Some(later)), None);
     }
 }
