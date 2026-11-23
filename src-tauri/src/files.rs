@@ -1,9 +1,8 @@
 //! File commands: read and write source files, list a project folder for the file tree,
-//! and keep the session (last project and open tabs) in the app's config directory.
+//! (Sessions, one per window, live in `windows`.)
 
 use serde::Serialize;
 use std::path::{Path, PathBuf};
-use tauri::Manager;
 
 /// Extensions the file tree shows: the files you edit in a LaTeX project. Build output
 /// (.aux, .log, .pdf, …) and images stay hidden.
@@ -113,33 +112,6 @@ fn is_source(path: &Path) -> bool {
     path.extension()
         .and_then(|ext| ext.to_str())
         .is_some_and(|ext| SOURCE_EXTENSIONS.contains(&ext.to_lowercase().as_str()))
-}
-
-fn session_path(app: &tauri::AppHandle) -> Result<PathBuf, String> {
-    let dir = app
-        .path()
-        .app_config_dir()
-        .map_err(|e| format!("No config folder: {e}"))?;
-    Ok(dir.join("session.json"))
-}
-
-/// The saved session JSON, or `None` on first launch.
-#[tauri::command]
-pub fn read_session(app: tauri::AppHandle) -> Result<Option<String>, String> {
-    match std::fs::read_to_string(session_path(&app)?) {
-        Ok(contents) => Ok(Some(contents)),
-        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(None),
-        Err(e) => Err(format!("Couldn't read the session: {e}")),
-    }
-}
-
-#[tauri::command]
-pub fn write_session(app: tauri::AppHandle, contents: String) -> Result<(), String> {
-    let path = session_path(&app)?;
-    if let Some(dir) = path.parent() {
-        std::fs::create_dir_all(dir).map_err(|e| format!("Couldn't create {dir:?}: {e}"))?;
-    }
-    std::fs::write(&path, contents).map_err(|e| format!("Couldn't save the session: {e}"))
 }
 
 #[cfg(test)]
