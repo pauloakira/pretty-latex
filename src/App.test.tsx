@@ -7,6 +7,8 @@ import type { Session } from "./domain/project";
 import { memoryFiles } from "./test/memoryFiles";
 import { scriptedBuilder } from "./test/scriptedBuilder";
 import { fakePdfDisplay } from "./test/fakePdfDisplay";
+import { fakeGit, repoStatus } from "./test/fakeGit";
+import type { GitStatus } from "./domain/git";
 import { BUILD_DEBOUNCE_MS } from "./presentation/workspace/useBuild";
 
 // Tell React this is a test environment so act() works without warnings.
@@ -15,7 +17,7 @@ import { BUILD_DEBOUNCE_MS } from "./presentation/workspace/useBuild";
 let container: HTMLDivElement;
 let root: Root;
 
-const q = (selector: string) => container.querySelector(selector);
+const q = <E extends Element = Element>(selector: string) => container.querySelector<E>(selector);
 const button = (label: string) => container.querySelector<HTMLButtonElement>(`button[aria-label="${label}"]`);
 const tabTitles = () => [...container.querySelectorAll(".tab-title")].map((el) => el.textContent);
 const activeTab = () => q('.tab-title[aria-current="page"]')?.textContent;
@@ -47,15 +49,17 @@ const afterBuild = async () => {
 
 let builds = scriptedBuilder();
 let pdfs = fakePdfDisplay();
+let repo = fakeGit();
 
-async function mount(disk: Record<string, string> = {}, session: Session | null = null) {
+async function mount(disk: Record<string, string> = {}, session: Session | null = null, gitStatus: GitStatus | null = null) {
   const fake = memoryFiles(disk, session);
+  repo = fakeGit(gitStatus);
   builds = scriptedBuilder();
   pdfs = fakePdfDisplay();
   container = document.createElement("div");
   document.body.appendChild(container);
   root = createRoot(container);
-  act(() => root.render(<App files={fake.files} builder={builds.builder} createPdfDisplay={pdfs.create} />));
+  act(() => root.render(<App files={fake.files} builder={builds.builder} createPdfDisplay={pdfs.create} git={repo.git} />));
   await settle();
   return fake;
 }
@@ -395,5 +399,119 @@ describe("expanded PDF", () => {
     await press("\\");
     expect(expanded()).toBe(false);
     expect(q('[aria-label="PDF preview"]')).toBeNull();
+  });
+});
+
+describe("git panel", () => {
+  const changed = repoStatus({
+    files: [
+      { path: "main.tex", status: "M" },
+      { path: "chapters/one.tex", status: "?" },
+    ],
+  });
+  const openRepo = async (status: GitStatus | null = changed) => {
+    const fake = await mount({ "/p/main.tex": "\\documentclass{article}" }, null, status);
+    fake.state.nextFolder = "/p";
+    await press("o", { shiftKey: true });
+    return fake;
+  };
+  const message = () => q<HTMLTextAreaElement>('textarea[aria-label="Commit message"]');
+  const typeMessage = (text: string) =>
+    act(() => {
+      const el = message()!;
+      Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value")!.set!.call(el, text);
+      el.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+  const buttonText = (text: string) =>
+    [...container.querySelectorAll<HTMLButtonElement>("button")].find((b) => b.textContent === text);
+  const result = () => q(".git-result")?.textContent;
+
+  it("shows a git icon with the change count only for a repository", async () => {
+    await openRepo(null);
+    act(() => button("Hide file tree")?.click());
+    expect(button("Git")).toBeNull();
+    expect(q('[aria-label^="Git"]')).toBeNull();
+
+    await openRepo();
+    act(() => button("Hide file tree")?.click());
+    expect(q('button[aria-label="Git, 2 changed"]')?.textContent).toContain("2");
+  });
+
+  it("opens from the rail or ⇧⌘G with the branch and changed files", async () => {
+    await openRepo();
+    act(() => button("Hide file tree")?.click());
+    act(() => q<HTMLButtonElement>('button[aria-label="Git, 2 changed"]')?.click());
+    await settle();
+    expect(q('[aria-label="Git"]')).not.toBeNull();
+    expect(q(".git-branch")?.textContent).toContain("main");
+    const files = [...container.querySelectorAll(".git-file")].map((el) => el.textContent);
+    expect(files).toEqual(["main.texM", "one.tex chaptersN"]);
+
+    act(() => (container.querySelector('[role="tab"]') as HTMLButtonElement).click());
+    expect(q('[aria-label="File tree"]')).not.toBeNull();
+    await press("G", { shiftKey: true });
+    expect(q('[aria-label="Git"]')).not.toBeNull();
+  });
+
+  it("commits the ticked files with the message, and pushes", async () => {
+    await openRepo();
+    await press("G", { shiftKey: true });
+    expect(buttonText("Commit & Push")?.disabled).toBe(true);
+    typeMessage("Draft chapter one");
+    // Leave main.tex out.
+    act(() => (container.querySelectorAll(".git-file input")[0] as HTMLInputElement).click());
+    expect(q(".git-all")?.textContent).toContain("1 of 2");
+    act(() => buttonText("Commit & Push")?.click());
+    await settle();
+    expect(repo.state.commits).toEqual([{ message: "Draft chapter one", paths: ["chapters/one.tex"] }]);
+    expect(repo.state.pushes).toBe(1);
+    expect(result()).toContain("committed 1 file · abc1234 · pushed to origin/main");
+    expect(message()?.value).toBe("");
+    expect([...container.querySelectorAll(".git-file")].map((el) => el.textContent)).toEqual(["main.texM"]);
+  });
+
+  it("says what went wrong, and keeps the message when the commit fails", async () => {
+    await openRepo();
+    await press("G", { shiftKey: true });
+    repo.state.commitError = new Error("Please tell me who you are");
+    typeMessage("Draft");
+    act(() => buttonText("Commit")?.click());
+    await settle();
+    expect(q(".git-result.statusline-error")?.textContent).toContain("Please tell me who you are");
+    expect(message()?.value).toBe("Draft");
+  });
+
+  it("keeps the commit when only the push fails", async () => {
+    await openRepo();
+    await press("G", { shiftKey: true });
+    repo.state.pushError = new Error("Permission denied (publickey)");
+    typeMessage("Draft");
+    act(() => buttonText("Commit & Push")?.click());
+    await settle();
+    expect(repo.state.commits).toHaveLength(1);
+    expect(result()).toContain("committed abc1234, but push failed: Permission denied (publickey)");
+  });
+
+  it("offers a push when commits are waiting, and only Commit without a remote", async () => {
+    await openRepo(repoStatus({ ahead: 2 }));
+    await press("G", { shiftKey: true });
+    expect(q(".git-sync")?.textContent).toBe("↑2");
+    act(() => buttonText("Push ↑2")?.click());
+    await settle();
+    expect(repo.state.pushes).toBe(1);
+
+    await openRepo(repoStatus({ hasRemote: false, upstream: null, files: [{ path: "a.tex", status: "M" }] }));
+    await press("G", { shiftKey: true });
+    expect(buttonText("Commit & Push")).toBeUndefined();
+    expect(q(".git-hint")?.textContent).toContain("No remote");
+  });
+
+  it("warns that unsaved changes won't be committed", async () => {
+    const fake = await openRepo();
+    fake.state.nextFile = "/p/main.tex";
+    await press("o");
+    await type("x");
+    await press("G", { shiftKey: true });
+    expect(q(".git-warning")?.textContent).toContain("main.tex has unsaved changes");
   });
 });

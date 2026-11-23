@@ -1,13 +1,22 @@
 import { useState, type CSSProperties, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
-import { FolderIcon, OutlineIcon, SearchIcon } from "./icons";
+import type { SidePanel } from "../../application/layout";
+import { FolderIcon, GitIcon, OutlineIcon, SearchIcon } from "./icons";
 
 type Props = {
   treeOpen: boolean;
   pdfOpen: boolean;
   /** The PDF fills the workspace; the tree and editor stay mounted (undo history) but hidden. */
   pdfExpanded?: boolean;
+  /** Which view the open side panel shows. */
+  sidePanel?: SidePanel;
+  /** Open the side panel on a view (a rail icon, or the panel's own tabs). */
+  onShowPanel?: (panel: SidePanel, toggle: boolean) => void;
   /** What fills the open file tree panel. */
   tree: ReactNode;
+  /** The git view; null when the open folder isn't a git repository. */
+  git?: ReactNode;
+  /** Changed files, shown as a count on the rail's git icon. */
+  gitChanges?: number;
   /** What fills the middle column (the editor). */
   source: ReactNode;
   /** The PDF column, shown when pdfOpen. */
@@ -31,7 +40,19 @@ function savedWidth(): number {
  * collapsed), source, and PDF. The PDF column's left edge can be dragged; its width is
  * remembered.
  */
-export function Workspace({ treeOpen, pdfOpen, pdfExpanded = false, tree, source, pdf }: Props) {
+export function Workspace({
+  treeOpen,
+  pdfOpen,
+  pdfExpanded = false,
+  sidePanel = "files",
+  onShowPanel,
+  tree,
+  git = null,
+  gitChanges = 0,
+  source,
+  pdf,
+}: Props) {
+  const view = git ? sidePanel : "files";
   const [pdfWidth, setPdfWidth] = useState(savedWidth);
 
   const startResize = (event: ReactPointerEvent<HTMLDivElement>) => {
@@ -65,14 +86,54 @@ export function Workspace({ treeOpen, pdfOpen, pdfExpanded = false, tree, source
   return (
     <div className={pdfExpanded ? "workspace workspace-pdf-expanded" : "workspace"} style={{ "--pdf-width": `${pdfWidth}px` } as CSSProperties}>
       {treeOpen ? (
-        <aside className="tree-panel" aria-label="File tree">
-          {tree}
+        <aside className="tree-panel" aria-label={view === "git" ? "Git" : "File tree"}>
+          {git && (
+            <div className="panel-tabs" role="tablist">
+              <button
+                type="button"
+                role="tab"
+                aria-selected={view === "files"}
+                className="panel-tab"
+                onClick={() => onShowPanel?.("files", false)}
+              >
+                Files
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={view === "git"}
+                className="panel-tab"
+                onClick={() => onShowPanel?.("git", false)}
+              >
+                Git{gitChanges > 0 && <span className="panel-tab-count">{gitChanges}</span>}
+              </button>
+            </div>
+          )}
+          {view === "git" ? git : tree}
         </aside>
       ) : (
         <aside className="tree-rail" aria-label="File tree (collapsed)">
-          <span className="rail-icon rail-icon-active" title="Files">
+          <button
+            type="button"
+            className="rail-icon rail-icon-active"
+            title="Files (⌘B)"
+            aria-label="Files"
+            onClick={() => onShowPanel?.("files", true)}
+          >
             <FolderIcon />
-          </span>
+          </button>
+          {git && (
+            <button
+              type="button"
+              className="rail-icon"
+              title="Commit and push (⇧⌘G)"
+              aria-label={gitChanges > 0 ? `Git, ${gitChanges} changed` : "Git"}
+              onClick={() => onShowPanel?.("git", true)}
+            >
+              <GitIcon />
+              {gitChanges > 0 && <span className="rail-badge">{gitChanges > 99 ? "99+" : gitChanges}</span>}
+            </button>
+          )}
           <span className="rail-icon" title="Outline">
             <OutlineIcon />
           </span>

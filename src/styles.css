@@ -235,6 +235,267 @@ button {
   color: var(--text);
 }
 
+button.rail-icon {
+  position: relative;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: default;
+}
+
+button.rail-icon:hover {
+  background: var(--glass-panel);
+  color: var(--text);
+}
+
+button.rail-icon-active {
+  background: var(--glass-panel);
+}
+
+/* Changed-file count on the rail's git icon. */
+.rail-badge {
+  position: absolute;
+  top: -3px;
+  right: -5px;
+  min-width: 14px;
+  height: 14px;
+  padding: 0 3px;
+  box-sizing: border-box;
+  border-radius: 7px;
+  background: var(--accent);
+  color: #0e1220;
+  font-size: 9px;
+  line-height: 14px;
+  text-align: center;
+}
+
+/* Files | Git, at the top of the open side panel when the folder is a repository. */
+.panel-tabs {
+  display: flex;
+  gap: 2px;
+  margin: 0 0 12px;
+  padding: 0 4px;
+}
+
+.panel-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 8px;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--text-faint);
+  font: inherit;
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  cursor: default;
+}
+
+.panel-tab:hover {
+  color: var(--text-dim);
+}
+
+.panel-tab[aria-selected="true"] {
+  background: var(--glass-panel);
+  color: var(--text);
+}
+
+.panel-tab-count {
+  color: var(--accent);
+  letter-spacing: 0;
+}
+
+/* ── Git panel ─────────────────────────────────────────────── */
+
+.git-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 0 6px;
+  font-size: 12px;
+  color: var(--text-dim);
+}
+
+.git-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 2px;
+}
+
+.git-branch {
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.git-sync {
+  color: var(--accent);
+}
+
+.git-refresh {
+  margin-left: auto;
+  font-size: 13px;
+}
+
+.git-panel .pane-empty {
+  padding: 0 2px;
+}
+
+.git-all,
+.git-file {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 22px;
+  padding: 0 4px;
+  border-radius: 5px;
+}
+
+.git-all {
+  color: var(--text-faint);
+  font-size: 11px;
+}
+
+.git-file:hover {
+  background: var(--glass-panel);
+  color: var(--text);
+}
+
+.git-panel input[type="checkbox"] {
+  margin: 0;
+  accent-color: var(--accent);
+  flex-shrink: 0;
+}
+
+.git-files {
+  margin: -6px 0 0;
+  padding: 0;
+  list-style: none;
+  max-height: 40vh;
+  overflow-y: auto;
+}
+
+.git-file-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.git-file-dir {
+  color: var(--text-faint);
+}
+
+.git-letter {
+  width: 12px;
+  flex-shrink: 0;
+  text-align: center;
+  font-size: 11px;
+  color: var(--warn);
+}
+
+.git-letter-new,
+.git-letter-added {
+  color: var(--ok);
+}
+
+.git-letter-deleted,
+.git-letter-conflict {
+  color: var(--error);
+}
+
+.git-message {
+  width: 100%;
+  box-sizing: border-box;
+  resize: vertical;
+  min-height: 56px;
+  padding: 7px 9px;
+  border: 1px solid var(--hairline);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text);
+  font: inherit;
+  font-size: 12px;
+  line-height: 1.5;
+  outline: none;
+}
+
+.git-message:focus {
+  border-color: rgba(126, 224, 195, 0.45);
+}
+
+.git-message::placeholder {
+  color: var(--text-faint);
+}
+
+.git-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.git-button {
+  flex: 1;
+  padding: 5px 8px;
+  border: 1px solid var(--hairline);
+  border-radius: 6px;
+  background: var(--glass-panel);
+  color: var(--text-dim);
+  font: inherit;
+  font-size: 12px;
+  cursor: default;
+}
+
+.git-button:hover:not(:disabled) {
+  color: var(--text);
+  background: var(--glass-raised);
+}
+
+.git-button-primary {
+  border-color: rgba(126, 224, 195, 0.35);
+  background: rgba(126, 224, 195, 0.12);
+  color: var(--accent);
+}
+
+.git-button-primary:hover:not(:disabled) {
+  background: rgba(126, 224, 195, 0.2);
+  color: var(--accent);
+}
+
+.git-button:disabled {
+  opacity: 0.45;
+}
+
+.git-warning,
+.git-hint,
+.git-result {
+  margin: 0;
+  padding: 0 2px;
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.git-warning {
+  color: var(--warn);
+}
+
+.git-warning kbd {
+  font: inherit;
+}
+
+.git-hint {
+  color: var(--text-faint);
+}
+
+.git-result {
+  color: var(--ok);
+  overflow-wrap: anywhere;
+}
+
 .tree-panel {
   width: var(--tree-width);
   padding: 14px 10px;
