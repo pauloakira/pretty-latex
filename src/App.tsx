@@ -1,6 +1,8 @@
-import { useEffect, useMemo, useReducer, useRef } from "react";
+import { useEffect, useMemo, useReducer, useRef, useState } from "react";
 import { lazyPdfJs } from "./infrastructure/pdf/lazyPdfJs";
 import { tauriGit } from "./infrastructure/git/tauriGit";
+import { tauriSyncTex } from "./infrastructure/synctex/tauriSyncTex";
+import type { PdfSpot, SyncTex } from "./domain/synctex";
 import { unsavedInRepo, type Git } from "./domain/git";
 import { GitPanel } from "./presentation/shell/GitPanel";
 import { useGit } from "./presentation/workspace/useGit";
@@ -32,6 +34,8 @@ type Props = {
   createPdfDisplay?: PdfDisplayFactory;
   /** Commit and push; tests pass a scripted one. */
   git?: Git;
+  /** Jumps between source and PDF; tests pass a scripted one. */
+  syncTex?: SyncTex;
 };
 
 /** The glass window (design B): title bar with tabs, file tree, editor, PDF, status line. */
@@ -40,6 +44,7 @@ export default function App({
   builder = tauriBuilder,
   createPdfDisplay = lazyPdfJs,
   git = tauriGit,
+  syncTex = tauriSyncTex,
 }: Props) {
   const [layout, dispatchLayout] = useReducer(layoutReducer, initialLayout);
   const build = useBuild(builder);
@@ -59,6 +64,57 @@ export default function App({
   const repo = useGit(git, gitFolder);
   gitRefresh.current = repo.refresh;
   const showingGit = layout.treeOpen && layout.sidePanel === "git";
+  // ── SyncTeX ────────────────────────────────────────────────────────────────────
+  const [cursorLine, setCursorLine] = useState<number | null>(null);
+  const [pdfReveal, setPdfReveal] = useState<{ spot: PdfSpot; nonce: number } | null>(null);
+  const [sourceReveal, setSourceReveal] = useState<{ path: string; line: number; nonce: number } | null>(null);
+  const [syncNote, setSyncNote] = useState<string | null>(null);
+  const nonce = useRef(0);
+  useEffect(() => {
+    if (!syncNote) return;
+    const timer = setTimeout(() => setSyncNote(null), 2500);
+    return () => clearTimeout(timer);
+  }, [syncNote]);
+
+  /** ⌘↵ in the editor: show where this line is in the PDF. */
+  const syncToPdf = async (line: number) => {
+    const path = active?.path;
+    if (!build.pdf || !path) {
+      setSyncNote(path ? "build first (⌘S) to jump to the PDF" : "save the file first to jump to the PDF");
+      return;
+    }
+    try {
+      const spot = await syncTex.forward(build.pdf, path, line);
+      if (!spot) {
+        setSyncNote(`line ${line} isn't in the PDF`);
+        return;
+      }
+      if (!layout.pdfOpen) dispatchLayout({ type: "togglePdf" });
+      setPdfReveal({ spot, nonce: ++nonce.current });
+    } catch (error) {
+      setSyncNote(error instanceof Error ? error.message : String(error));
+    }
+  };
+
+  /** ⌘-click in the PDF: open the source line behind it. */
+  const syncToSource = async (page: number, x: number, y: number) => {
+    if (!build.pdf) return;
+    try {
+      const spot = await syncTex.inverse(build.pdf, page, x, y);
+      if (!spot) {
+        setSyncNote("no source line there");
+        return;
+      }
+      dispatchLayout({ type: "leaveExpandedPdf" });
+      await workspace.openPath(spot.file);
+      setSourceReveal({ path: spot.file, line: spot.line, nonce: ++nonce.current });
+    } catch (error) {
+      setSyncNote(error instanceof Error ? error.message : String(error));
+    }
+  };
+  // Only once the jumped-to file is the active tab, so the line lands in the right document.
+  const editorReveal = sourceReveal && active?.path === sourceReveal.path ? sourceReveal : null;
+
   const { refresh: refreshGit } = repo;
   useEffect(() => {
     if (showingGit) void refreshGit();
@@ -206,6 +262,8 @@ export default function App({
             onHide={() => dispatchLayout({ type: "togglePdf" })}
             expanded={layout.pdfExpanded}
             onToggleExpanded={() => dispatchLayout({ type: "toggleExpandPdf" })}
+            onSyncClick={(page, x, y) => void syncToSource(page, x, y)}
+            reveal={pdfReveal}
           />
         }
         tree={
@@ -223,6 +281,9 @@ export default function App({
               text={active.text}
               openKeys={openKeys}
               diagnostics={activeDiagnostics}
+              reveal={editorReveal}
+              onSyncToPdf={(line) => void syncToPdf(line)}
+              onCursorLine={setCursorLine}
               onChange={(key, text) => dispatch({ type: "edit", key, text })}
             />
           ) : (
@@ -233,7 +294,9 @@ export default function App({
       <StatusLine
         pdfOpen={layout.pdfOpen}
         location={active ? (active.path ? relativeTo(project?.root ?? null, active.path) : active.title) : null}
-        notice={noticeFor(workspace.notice, buildNotice)}
+        notice={noticeFor(workspace.notice, syncNote ? { text: syncNote, tone: "info" } : buildNotice)}
+        line={active ? cursorLine : null}
+        canSync={!!build.pdf && !!active?.path}
       />
     </div>
   );

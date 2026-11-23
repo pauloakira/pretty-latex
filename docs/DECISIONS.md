@@ -113,3 +113,17 @@ the Mac App Store. Distribution is a signed, notarized `.dmg`, like pretty-markd
 - **Finder opens** go to the window whose folder holds the file (the deepest if folders
   nest), else the focused window. Each window listens to its own events only.
 - **Window titles** are "<folder> — pretty-latex" for the Window menu and Mission Control.
+
+## D7 — SyncTeX through the `synctex` tool (2026-11-23)
+
+- **⌘↵** in the editor (ahead of CodeMirror's own ⌘↵) asks `synctex view` where the line
+  went; the boxes it lists on the first page are joined into one spot, scrolled to a third
+  of the way down the pane and tinted teal for a moment. A hidden PDF is shown first.
+- **⌘-click** on a page asks `synctex edit` for the source line; it opens that file (or
+  switches to its tab), puts the cursor on the line and tints it. A ⌘-click on a link jumps
+  to the source rather than following the link. An expanded PDF steps back to show it.
+- **Coordinates:** SyncTeX measures in PDF points from the page's top-left; pdf.js's page
+  viewport (known for every page before it's drawn) converts both ways. The highlight sits
+  on the scrolling layer, not inside the page, since pdf.js clears pages it redraws.
+- **The tool** comes with every TeX install and reads the `.synctex.gz` latexmk already
+  writes (`-synctex=1`), so there's no SyncTeX parser of our own to maintain.

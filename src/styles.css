@@ -754,6 +754,27 @@ button.rail-icon-active {
   box-shadow: 0 4px 14px rgba(0, 0, 0, 0.45);
 }
 
+/* Where the line ⌘↵ jumped from landed: a teal tint that fades (card: "teal tint"). */
+.pdf-sync-mark {
+  position: absolute;
+  z-index: 3;
+  border-radius: 3px;
+  background: rgba(126, 224, 195, 0.28);
+  outline: 1px solid rgba(126, 224, 195, 0.7);
+  pointer-events: none;
+  animation: pdf-sync-fade 1.8s ease-out forwards;
+}
+
+@keyframes pdf-sync-fade {
+  0%,
+  55% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
 .pdf-overlay {
   position: absolute;
   inset: 0;
@@ -813,6 +834,12 @@ button.rail-icon-active {
 
 .statusline-dim {
   color: var(--text-faint);
+}
+
+.statusline-right {
+  display: inline-flex;
+  gap: 16px;
+  flex-shrink: 0;
 }
 
 .statusline-error {

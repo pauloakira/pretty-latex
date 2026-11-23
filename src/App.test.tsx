@@ -8,6 +8,7 @@ import { memoryFiles } from "./test/memoryFiles";
 import { scriptedBuilder } from "./test/scriptedBuilder";
 import { fakePdfDisplay } from "./test/fakePdfDisplay";
 import { fakeGit, repoStatus } from "./test/fakeGit";
+import { fakeSyncTex } from "./test/fakeSyncTex";
 import type { GitStatus } from "./domain/git";
 import { BUILD_DEBOUNCE_MS } from "./presentation/workspace/useBuild";
 
@@ -50,16 +51,18 @@ const afterBuild = async () => {
 let builds = scriptedBuilder();
 let pdfs = fakePdfDisplay();
 let repo = fakeGit();
+let sync = fakeSyncTex();
 
 async function mount(disk: Record<string, string> = {}, session: Session | null = null, gitStatus: GitStatus | null = null) {
   const fake = memoryFiles(disk, session);
   repo = fakeGit(gitStatus);
+  sync = fakeSyncTex();
   builds = scriptedBuilder();
   pdfs = fakePdfDisplay();
   container = document.createElement("div");
   document.body.appendChild(container);
   root = createRoot(container);
-  act(() => root.render(<App files={fake.files} builder={builds.builder} createPdfDisplay={pdfs.create} git={repo.git} />));
+  act(() => root.render(<App files={fake.files} builder={builds.builder} createPdfDisplay={pdfs.create} git={repo.git} syncTex={sync.syncTex} />));
   await settle();
   return fake;
 }
@@ -559,5 +562,85 @@ describe("windows", () => {
     await mount({}, { version: 1, project: null, tabs: [], active: null });
     expect(tabTitles()).toEqual([]);
     expect(q(".source-empty")?.textContent).toContain("new window");
+  });
+});
+
+describe("SyncTeX", () => {
+  const thesis = {
+    "/p/main.tex": "\\documentclass{article}\n\\begin{document}\n\\input{ch}\n\\end{document}\n",
+    "/p/ch.tex": "one\ntwo\nthree\nfour\n",
+    "/p/build/main.pdf": "%PDF",
+  };
+  const built = async () => {
+    const fake = await mount(thesis);
+    fake.state.nextFile = "/p/main.tex";
+    await press("o");
+    builds.state.next = { kind: "done", ok: true, seconds: 1, pdf: "/p/build/main.pdf", diagnostics: [] };
+    await press("s");
+    await afterBuild();
+    await settle();
+    return fake;
+  };
+  const view = () => EditorView.findFromDOM(q(".cm-editor") as HTMLElement)!;
+  const cursorLine = () => view().state.doc.lineAt(view().state.selection.main.head).number;
+  // CodeMirror's "Mod" is ⌘ on a Mac and Ctrl elsewhere; jsdom doesn't say it's a Mac.
+  const modEnter = async () => {
+    act(() => {
+      view().contentDOM.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", ctrlKey: true, bubbles: true }));
+    });
+    await settle();
+  };
+
+  it("⌘↵ shows the cursor's line in the PDF, opening the PDF if hidden", async () => {
+    await built();
+    act(() => view().dispatch({ selection: { anchor: view().state.doc.line(3).from } }));
+    await press("\\"); // hide the PDF
+    await modEnter();
+    expect(sync.syncTex.forward).toHaveBeenCalledWith("/p/build/main.pdf", "/p/main.tex", 3);
+    expect(q('[aria-label="PDF preview"]')).not.toBeNull();
+    await settle();
+    expect(pdfs.state.revealed).toEqual([{ page: 2, x: 72, y: 100, width: 300, height: 12 }]);
+    // It jumped instead of inserting a blank line.
+    expect(editorText()).toBe(thesis["/p/main.tex"]);
+  });
+
+  it("says why ⌘↵ can't jump before a build, or for a line that isn't in the PDF", async () => {
+    const fake = await mount(thesis);
+    fake.state.nextFile = "/p/main.tex";
+    await press("o");
+    await modEnter();
+    expect(q(".statusline")?.textContent).toContain("build first");
+    expect(sync.syncTex.forward).not.toHaveBeenCalled();
+  });
+
+  it("⌘-click in the PDF opens the source line behind it and highlights it", async () => {
+    await built();
+    sync.state.source = { file: "/p/ch.tex", line: 3 };
+    await act(async () => {
+      pdfs.state.onSyncClick?.(2, 100, 200);
+    });
+    await settle();
+    expect(sync.syncTex.inverse).toHaveBeenCalledWith("/p/build/main.pdf", 2, 100, 200);
+    expect(activeTab()).toBe("ch.tex");
+    expect(cursorLine()).toBe(3);
+    expect(q(".cm-synced-line")?.textContent).toBe("three");
+    expect(q('[aria-label="Line"]')?.textContent).toBe("Ln 3");
+
+    // Back on main.tex and then ch.tex again: no replayed jump.
+    act(() => view().dispatch({ selection: { anchor: 0 } }));
+    act(() => (container.querySelectorAll(".tab-title")[0] as HTMLButtonElement).click());
+    act(() => (container.querySelectorAll(".tab-title")[1] as HTMLButtonElement).click());
+    expect(cursorLine()).toBe(1);
+  });
+
+  it("leaves the expanded PDF to show the source", async () => {
+    await built();
+    sync.state.source = { file: "/p/ch.tex", line: 2 };
+    act(() => button("Expand PDF")?.click());
+    await act(async () => {
+      pdfs.state.onSyncClick?.(1, 10, 10);
+    });
+    await settle();
+    expect(q(".workspace")?.classList.contains("workspace-pdf-expanded")).toBe(false);
   });
 });
