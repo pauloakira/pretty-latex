@@ -114,10 +114,8 @@ export function useWorkspace(files: Files, onSaved?: (path: string, text: string
     files.setWindowProject(root).catch(() => undefined);
   }, [files, root]);
 
-  /** Closes this window, asking first when files have unsaved changes. */
+  /** Closes this window; the close-requested handler asks about unsaved files. */
   const closeWindow = useCallback(async () => {
-    const unsaved = docsRef.current.docs.filter(isDirty).length;
-    if (unsaved > 0 && !(await files.confirmCloseWindow(unsaved).catch(() => false))) return;
     await files.closeWindow().catch(fail);
   }, [files, fail]);
 
@@ -153,9 +151,9 @@ export function useWorkspace(files: Files, onSaved?: (path: string, text: string
   }, [files, fail, loadProject]);
 
   const write = useCallback(
-    async (key: string, path: string) => {
+    async (key: string, path: string): Promise<boolean> => {
       const doc = docsRef.current.docs.find((d) => d.key === key);
-      if (!doc) return;
+      if (!doc) return false;
       const text = doc.text;
       try {
         await files.writeText(path, text);
@@ -164,8 +162,10 @@ export function useWorkspace(files: Files, onSaved?: (path: string, text: string
         setNotice({ text: `saved ${doc.path === path ? doc.title : path}`, tone: "info" });
         const root = projectRef.current?.root;
         if (root && path.startsWith(`${root}/`) && doc.path !== path) await refreshTree();
+        return true;
       } catch (error) {
         fail(error);
+        return false;
       }
     },
     [files, fail, refreshTree],
@@ -195,6 +195,61 @@ export function useWorkspace(files: Files, onSaved?: (path: string, text: string
     },
     [files],
   );
+
+  /** Saves every unsaved file, asking where for new ones. False when one wasn't saved. */
+  const saveAllUnsaved = useCallback(async () => {
+    for (const doc of docsRef.current.docs.filter(isDirty)) {
+      let path = doc.path;
+      if (!path) {
+        dispatch({ type: "activate", key: doc.key });
+        const dir = projectRef.current?.root;
+        path = await files.pickSavePath(dir ? `${dir}/${doc.title}` : doc.title).catch(() => null);
+        if (!path) return false;
+      }
+      if (!(await write(doc.key, path))) return false;
+    }
+    return true;
+  }, [files, write]);
+
+  /** Before closing or quitting: true when nothing unsaved is left to lose. */
+  const settleUnsaved = useCallback(
+    async (quitting: boolean) => {
+      const unsaved = docsRef.current.docs.filter(isDirty);
+      if (unsaved.length === 0) return true;
+      const titles = unsaved.map((doc) => doc.title);
+      const answer = await files.askUnsaved(titles, quitting).catch(() => "cancel" as const);
+      if (answer === "save") return saveAllUnsaved();
+      return answer === "discard";
+    },
+    [files, saveAllUnsaved],
+  );
+  const settleRef = useRef(settleUnsaved);
+  settleRef.current = settleUnsaved;
+
+  // Closing this window (red button, ⇧⌘W) and quitting (⌘Q) ask about unsaved files.
+  useEffect(() => {
+    let cancelled = false;
+    const stops: (() => void)[] = [];
+    const keep = (stop: () => void) => (cancelled ? stop() : stops.push(stop));
+    files
+      .onCloseRequested(() => settleRef.current(false))
+      .then(keep)
+      .catch(() => undefined);
+    files
+      .onQuitRequested(() => void settleRef.current(true).then((ready) => (ready ? files.continueQuit() : undefined)))
+      .then(keep)
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+      stops.forEach((stop) => stop());
+    };
+  }, [files]);
+
+  // ⌘Q asks only the windows that have something unsaved.
+  const unsavedCount = documents.docs.filter(isDirty).length;
+  useEffect(() => {
+    files.setUnsavedCount(unsavedCount).catch(() => undefined);
+  }, [files, unsavedCount]);
 
   const dirtyPaths = useMemo(
     () => new Set(documents.docs.flatMap((doc) => (doc.path && isDirty(doc) ? [doc.path] : []))),

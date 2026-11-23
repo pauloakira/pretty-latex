@@ -1,5 +1,8 @@
 import type { ProjectEntry, Session } from "./project";
 
+/** The answer to "these files have unsaved changes": save them, throw them away, or stop. */
+export type UnsavedAnswer = "save" | "discard" | "cancel";
+
 /**
  * Port: everything the app needs from the file system and native dialogs. The Tauri
  * adapter lives in infrastructure/files; tests use an in-memory one. Failures reject with
@@ -35,7 +38,19 @@ export interface Files {
   setWindowProject(root: string | null): Promise<void>;
   /** Brings forward another window that has `root` open; false when none does. */
   focusProjectWindow(root: string): Promise<boolean>;
-  /** Ask before closing a window that has unsaved changes. True means close anyway. */
-  confirmCloseWindow(unsaved: number): Promise<boolean>;
+  /** Save / Don't Save / Cancel for the unsaved files `titles`, before closing or quitting. */
+  askUnsaved(titles: string[], quitting: boolean): Promise<UnsavedAnswer>;
+  /** Asks this window to close; the close-requested handler runs first. */
   closeWindow(): Promise<void>;
+  /**
+   * Runs `handler` whenever this window is about to close (red button, ⇧⌘W, Window menu).
+   * It resolves true to let it close. Resolves to an unsubscribe function.
+   */
+  onCloseRequested(handler: () => Promise<boolean>): Promise<() => void>;
+  /** The app is quitting (⌘Q) and wants this window to deal with its unsaved files. */
+  onQuitRequested(handler: () => void): Promise<() => void>;
+  /** This window is ready for the quit: the app asks the next window, or quits. */
+  continueQuit(): Promise<void>;
+  /** How many files in this window have unsaved changes, so ⌘Q knows whom to ask. */
+  setUnsavedCount(count: number): Promise<void>;
 }
