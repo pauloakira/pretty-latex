@@ -1,7 +1,8 @@
-//! Rust core of pretty-latex: the glass window, the file commands in `files` and the
-//! latexmk build in `latex`. SyncTeX lands here in a later card.
+//! Rust core of pretty-latex: the glass window, the file commands in `files`, the
+//! latexmk build in `latex` and commit/push in `git`. SyncTeX lands here in a later card.
 
 mod files;
+mod git;
 mod latex;
 
 use std::sync::Mutex;
@@ -68,6 +69,9 @@ pub fn run() {
             files::read_session,
             files::write_session,
             latex::build_latex,
+            git::git_status,
+            git::git_commit,
+            git::git_push,
             take_pending_files,
         ])
         .setup(|_app| {

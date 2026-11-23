@@ -7,6 +7,11 @@
   </defs>
   <rect x="64" y="64" width="896" height="896" rx="200" fill="url(#bg)"/>
   <rect x="64" y="64" width="896" height="896" rx="200" fill="none" stroke="#FFFFFF" stroke-opacity="0.18" stroke-width="8"/>
-  <text x="512" y="600" text-anchor="middle" font-family="Menlo, monospace" font-size="300" fill="#7EE0C3">\TeX</text>
-  <rect x="770" y="455" width="40" height="190" fill="#7EE0C3"/>
+  <!-- \TeX drawn as strokes (no font dependency); E lowered as in the TeX logo -->
+  <g transform="translate(23,-28)" fill="none" stroke="#7EE0C3" stroke-width="46" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M190 380 L290 640"/>
+    <path d="M335 380 L505 380 M420 380 L420 640"/>
+    <path d="M618 445 L510 445 L510 700 L618 700 M510 572 L598 572"/>
+    <path d="M648 380 L788 640 M788 380 L648 640"/>
+  </g>
 </svg>

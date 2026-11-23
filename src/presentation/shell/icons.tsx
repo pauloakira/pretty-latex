@@ -66,3 +66,15 @@ export function CollapseIcon({ size = 14 }: IconProps) {
     </svg>
   );
 }
+
+/** A branch: the git panel. */
+export function GitIcon({ size = 16 }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 16 16" fill="none" aria-hidden="true">
+      <circle cx="4.5" cy="3.5" r="1.5" stroke="currentColor" strokeWidth="1.2" />
+      <circle cx="4.5" cy="12.5" r="1.5" stroke="currentColor" strokeWidth="1.2" />
+      <circle cx="11.5" cy="5.5" r="1.5" stroke="currentColor" strokeWidth="1.2" />
+      <path d="M4.5 5v6M11.5 7c0 2.5-2 3-7 4" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+    </svg>
+  );
+}

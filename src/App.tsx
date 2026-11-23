@@ -1,5 +1,9 @@
 import { useEffect, useMemo, useReducer, useRef } from "react";
 import { lazyPdfJs } from "./infrastructure/pdf/lazyPdfJs";
+import { tauriGit } from "./infrastructure/git/tauriGit";
+import { unsavedInRepo, type Git } from "./domain/git";
+import { GitPanel } from "./presentation/shell/GitPanel";
+import { useGit } from "./presentation/workspace/useGit";
 import type { PdfDisplayFactory } from "./presentation/pdf/PdfDisplay";
 import { PdfPane } from "./presentation/pdf/PdfPane";
 import { shortcutToFileCommand, type FileCommand } from "./application/fileShortcuts";
@@ -26,20 +30,39 @@ type Props = {
   builder?: Builder;
   /** Draws the PDF; tests pass a fake (jsdom can't run pdf.js). */
   createPdfDisplay?: PdfDisplayFactory;
+  /** Commit and push; tests pass a scripted one. */
+  git?: Git;
 };
 
 /** The glass window (design B): title bar with tabs, file tree, editor, PDF, status line. */
-export default function App({ files = tauriFiles, builder = tauriBuilder, createPdfDisplay = lazyPdfJs }: Props) {
+export default function App({
+  files = tauriFiles,
+  builder = tauriBuilder,
+  createPdfDisplay = lazyPdfJs,
+  git = tauriGit,
+}: Props) {
   const [layout, dispatchLayout] = useReducer(layoutReducer, initialLayout);
   const build = useBuild(builder);
   // Read at save time, so the latest open folder decides the main file.
   const projectRef = useRef<Workspace["project"]>(null);
+  const gitRefresh = useRef<() => Promise<void>>(async () => undefined);
   const workspace = useWorkspace(files, (path, text) => {
     const main = mainFileFor(path, text, projectRef.current);
     if (main) build.request(main);
+    void gitRefresh.current();
   });
   const { documents, active, project, dispatch } = workspace;
   projectRef.current = project;
+
+  // The repository is the open folder's, or with no folder open, the active file's.
+  const gitFolder = project?.root ?? (active?.path ? active.path.slice(0, active.path.lastIndexOf("/")) : null);
+  const repo = useGit(git, gitFolder);
+  gitRefresh.current = repo.refresh;
+  const showingGit = layout.treeOpen && layout.sidePanel === "git";
+  const { refresh: refreshGit } = repo;
+  useEffect(() => {
+    if (showingGit) void refreshGit();
+  }, [showingGit, refreshGit]);
 
   // Build once the last session is back, so its PDF shows without a save first.
   const builtOnLaunch = useRef(false);
@@ -154,6 +177,22 @@ export default function App({ files = tauriFiles, builder = tauriBuilder, create
         treeOpen={layout.treeOpen}
         pdfOpen={layout.pdfOpen}
         pdfExpanded={layout.pdfExpanded}
+        sidePanel={layout.sidePanel}
+        onShowPanel={(panel, toggle) => dispatchLayout({ type: "showPanel", panel, toggle })}
+        gitChanges={repo.status?.files.length ?? 0}
+        git={
+          repo.status && (
+            <GitPanel
+              status={repo.status}
+              unsaved={unsavedInRepo(repo.status.root, workspace.dirtyPaths)}
+              busy={repo.busy}
+              result={repo.result}
+              onCommit={repo.commit}
+              onPush={() => void repo.push()}
+              onRefresh={() => void repo.refresh()}
+            />
+          )
+        }
         pdf={
           <PdfPane
             path={build.pdf}

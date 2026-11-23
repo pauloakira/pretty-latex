@@ -2,18 +2,24 @@
  * Which panes are visible. Default matches canvas design B1: file tree collapsed to a
  * rail, PDF shown. Pure: no React, so it's tested directly.
  */
+export type SidePanel = "files" | "git";
+
 export type Layout = {
   treeOpen: boolean;
+  /** What the open side panel shows: the file tree, or git (commit and push). */
+  sidePanel: SidePanel;
   pdfOpen: boolean;
   /** The PDF fills the window, the tree and editor set aside (⇧⌘\, Esc leaves). */
   pdfExpanded: boolean;
 };
 
-export const initialLayout: Layout = { treeOpen: false, pdfOpen: true, pdfExpanded: false };
+export const initialLayout: Layout = { treeOpen: false, sidePanel: "files", pdfOpen: true, pdfExpanded: false };
 
 export type LayoutAction =
   | { type: "toggleTree" }
   | { type: "showTree" }
+  /** A rail icon or ⇧⌘G: open the side panel on that view (collapse it if already there). */
+  | { type: "showPanel"; panel: SidePanel; toggle?: boolean }
   | { type: "togglePdf" }
   | { type: "toggleExpandPdf" }
   | { type: "leaveExpandedPdf" };
@@ -24,6 +30,10 @@ export function layoutReducer(layout: Layout, action: LayoutAction): Layout {
       return { ...layout, treeOpen: !layout.treeOpen };
     case "showTree":
       return layout.treeOpen ? layout : { ...layout, treeOpen: true };
+    case "showPanel":
+      if (action.toggle && layout.treeOpen && layout.sidePanel === action.panel) return { ...layout, treeOpen: false };
+      // The panel sits beside the editor, so it also leaves the expanded PDF.
+      return { ...layout, treeOpen: true, sidePanel: action.panel, pdfExpanded: false };
     case "togglePdf":
       // Hiding the PDF also leaves the expanded view, so the editor comes back.
       return { ...layout, pdfOpen: !layout.pdfOpen, pdfExpanded: false };
@@ -50,7 +60,11 @@ export type KeyPress = {
 export function shortcutToLayoutAction(press: KeyPress): LayoutAction | null {
   if (!press.metaKey || press.ctrlKey || press.altKey) return null;
   // Shift turns \ into | on most layouts.
-  if (press.shiftKey) return press.key === "\\" || press.key === "|" ? { type: "toggleExpandPdf" } : null;
+  if (press.shiftKey) {
+    if (press.key === "\\" || press.key === "|") return { type: "toggleExpandPdf" };
+    if (press.key.toLowerCase() === "g") return { type: "showPanel", panel: "git" };
+    return null;
+  }
   switch (press.key.toLowerCase()) {
     case "b":
       return { type: "toggleTree" };
