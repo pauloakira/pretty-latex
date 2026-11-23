@@ -7,7 +7,7 @@
 
 use std::collections::{HashMap, HashSet};
 use std::sync::Mutex;
-use tauri::menu::{Menu, MenuEvent, MenuItem, MenuItemKind};
+use tauri::menu::{AboutMetadata, Menu, MenuEvent, MenuItem, PredefinedMenuItem, Submenu};
 use tauri::{AppHandle, Emitter, Manager, Wry};
 
 /// The id of our Quit menu item.
@@ -21,28 +21,40 @@ pub struct Quit {
     approved: Mutex<HashSet<String>>,
 }
 
-/// The default menu, with AppKit's Quit swapped for one that asks first.
+/// The default menu, with its app menu rebuilt around a Quit that asks first.
 pub fn menu(app: &AppHandle) -> tauri::Result<Menu<Wry>> {
     let menu = Menu::default(app)?;
-    // The app menu (named after the app) comes first on macOS.
-    if let Some(MenuItemKind::Submenu(app_menu)) = menu.items()?.into_iter().next() {
-        for item in app_menu.items()? {
-            if let MenuItemKind::Predefined(predefined) = &item {
-                if predefined.text()?.starts_with("Quit") {
-                    app_menu.remove(predefined)?;
-                }
-            }
-        }
-        let name = &app.package_info().name;
-        let quit = MenuItem::with_id(
-            app,
-            QUIT_ID,
-            format!("Quit {name}"),
-            true,
-            Some("CmdOrCtrl+Q"),
-        )?;
-        app_menu.append(&quit)?;
-    }
+    let info = app.package_info();
+    let about = AboutMetadata {
+        name: Some(info.name.clone()),
+        version: Some(info.version.to_string()),
+        ..Default::default()
+    };
+    let quit = MenuItem::with_id(
+        app,
+        QUIT_ID,
+        format!("Quit {}", info.name),
+        true,
+        Some("CmdOrCtrl+Q"),
+    )?;
+    let app_menu = Submenu::with_items(
+        app,
+        info.name.clone(),
+        true,
+        &[
+            &PredefinedMenuItem::about(app, None, Some(about))?,
+            &PredefinedMenuItem::separator(app)?,
+            &PredefinedMenuItem::services(app, None)?,
+            &PredefinedMenuItem::separator(app)?,
+            &PredefinedMenuItem::hide(app, None)?,
+            &PredefinedMenuItem::hide_others(app, None)?,
+            &PredefinedMenuItem::separator(app)?,
+            &quit,
+        ],
+    )?;
+    // On macOS the first submenu is the app menu.
+    menu.remove_at(0)?;
+    menu.insert(&app_menu, 0)?;
     Ok(menu)
 }
 
