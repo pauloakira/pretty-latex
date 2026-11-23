@@ -1,6 +1,8 @@
-/** One open file in the title bar. The open/save card fills these in. */
+/** One open file in the title bar. */
 export type Tab = {
   id: string;
   title: string;
   dirty: boolean;
+  /** Shown as the tooltip; null for an unsaved new file. */
+  path: string | null;
 };

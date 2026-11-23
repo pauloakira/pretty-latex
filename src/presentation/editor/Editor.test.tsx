@@ -11,11 +11,13 @@ describe("Editor", () => {
   let container: HTMLDivElement;
   let root: Root;
 
-  function mount(doc: string, props: { cursorStyle?: CursorStyle; onChange?: (doc: string) => void } = {}) {
+  type Extra = { cursorStyle?: CursorStyle; onChange?: (key: string, doc: string) => void };
+
+  function mount(doc: string, props: Extra = {}) {
     container = document.createElement("div");
     document.body.appendChild(container);
     root = createRoot(container);
-    act(() => root.render(<Editor initialDoc={doc} {...props} />));
+    act(() => root.render(<Editor docKey="a" text={doc} {...props} />));
     const view = EditorView.findFromDOM(container.querySelector(".cm-editor") as HTMLElement);
     if (!view) throw new Error("editor did not mount");
     return view;
@@ -57,7 +59,7 @@ describe("Editor", () => {
     const onChange = vi.fn();
     const view = mount("abc", { onChange });
     act(() => view.dispatch({ changes: { from: 3, insert: "d" }, userEvent: "input.type" }));
-    expect(onChange).toHaveBeenLastCalledWith("abcd");
+    expect(onChange).toHaveBeenLastCalledWith("a", "abcd");
 
     act(() => {
       undo(view);
@@ -67,6 +69,32 @@ describe("Editor", () => {
       redo(view);
     });
     expect(view.state.doc.toString()).toBe("abcd");
+  });
+
+  it("keeps each document's text and undo history when switching between them", () => {
+    const onChange = vi.fn();
+    const view = mount("first", { onChange });
+    act(() => view.dispatch({ changes: { from: 5, insert: "!" } }));
+
+    act(() => root.render(<Editor docKey="b" text="second" onChange={onChange} />));
+    expect(view.state.doc.toString()).toBe("second");
+    act(() => view.dispatch({ changes: { from: 0, insert: ">" } }));
+    expect(onChange).toHaveBeenLastCalledWith("b", ">second");
+
+    act(() => root.render(<Editor docKey="a" text="ignored" onChange={onChange} />));
+    expect(view.state.doc.toString()).toBe("first!");
+    act(() => {
+      undo(view);
+    });
+    expect(view.state.doc.toString()).toBe("first");
+  });
+
+  it("forgets a closed document, so reopening its key starts from the given text", () => {
+    const view = mount("old");
+    act(() => view.dispatch({ changes: { from: 3, insert: " edit" } }));
+    act(() => root.render(<Editor docKey="b" text="b" openKeys={["b"]} />));
+    act(() => root.render(<Editor docKey="a" text="fresh" openKeys={["a", "b"]} />));
+    expect(view.state.doc.toString()).toBe("fresh");
   });
 
   it("highlights the active line", () => {
