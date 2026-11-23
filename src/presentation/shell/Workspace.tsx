@@ -4,6 +4,8 @@ import { FolderIcon, OutlineIcon, SearchIcon } from "./icons";
 type Props = {
   treeOpen: boolean;
   pdfOpen: boolean;
+  /** The PDF fills the workspace; the tree and editor stay mounted (undo history) but hidden. */
+  pdfExpanded?: boolean;
   /** What fills the open file tree panel. */
   tree: ReactNode;
   /** What fills the middle column (the editor). */
@@ -29,7 +31,7 @@ function savedWidth(): number {
  * collapsed), source, and PDF. The PDF column's left edge can be dragged; its width is
  * remembered.
  */
-export function Workspace({ treeOpen, pdfOpen, tree, source, pdf }: Props) {
+export function Workspace({ treeOpen, pdfOpen, pdfExpanded = false, tree, source, pdf }: Props) {
   const [pdfWidth, setPdfWidth] = useState(savedWidth);
 
   const startResize = (event: ReactPointerEvent<HTMLDivElement>) => {
@@ -61,7 +63,7 @@ export function Workspace({ treeOpen, pdfOpen, tree, source, pdf }: Props) {
   };
 
   return (
-    <div className="workspace" style={{ "--pdf-width": `${pdfWidth}px` } as CSSProperties}>
+    <div className={pdfExpanded ? "workspace workspace-pdf-expanded" : "workspace"} style={{ "--pdf-width": `${pdfWidth}px` } as CSSProperties}>
       {treeOpen ? (
         <aside className="tree-panel" aria-label="File tree">
           {tree}

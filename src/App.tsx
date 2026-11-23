@@ -96,8 +96,30 @@ export default function App({ files = tauriFiles, builder = tauriBuilder, create
   const runRef = useRef(run);
   runRef.current = run;
 
+  // Expanded, the hidden editor mustn't keep the keyboard: the PDF takes it (arrows and
+  // space scroll), and the editor gets it back on the way out.
+  const wasExpanded = useRef(false);
+  useEffect(() => {
+    if (layout.pdfExpanded === wasExpanded.current) return;
+    wasExpanded.current = layout.pdfExpanded;
+    const target = layout.pdfExpanded
+      ? document.querySelector<HTMLElement>(".pdf-layer:not(.pdf-layer-loading)")
+      : document.querySelector<HTMLElement>(".cm-content");
+    if (target) target.focus();
+    else if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
+  }, [layout.pdfExpanded]);
+
+  // Esc leaves the expanded PDF; the listener reads the layout through a ref.
+  const expandedRef = useRef(layout.pdfExpanded);
+  expandedRef.current = layout.pdfExpanded;
+
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape" && expandedRef.current) {
+        event.preventDefault();
+        dispatchLayout({ type: "leaveExpandedPdf" });
+        return;
+      }
       const layoutAction = shortcutToLayoutAction(event);
       if (layoutAction) {
         event.preventDefault();
@@ -131,6 +153,7 @@ export default function App({ files = tauriFiles, builder = tauriBuilder, create
       <Workspace
         treeOpen={layout.treeOpen}
         pdfOpen={layout.pdfOpen}
+        pdfExpanded={layout.pdfExpanded}
         pdf={
           <PdfPane
             path={build.pdf}
@@ -138,6 +161,8 @@ export default function App({ files = tauriFiles, builder = tauriBuilder, create
             readBytes={files.readBytes}
             createDisplay={createPdfDisplay}
             onHide={() => dispatchLayout({ type: "togglePdf" })}
+            expanded={layout.pdfExpanded}
+            onToggleExpanded={() => dispatchLayout({ type: "toggleExpandPdf" })}
           />
         }
         tree={

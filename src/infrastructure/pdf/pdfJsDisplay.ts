@@ -8,10 +8,11 @@
  */
 import { getDocument, GlobalWorkerOptions, type PDFDocumentProxy } from "pdfjs-dist/legacy/build/pdf.mjs";
 import workerUrl from "pdfjs-dist/legacy/build/pdf.worker.min.mjs?url";
-import { EventBus, PDFLinkService, PDFViewer } from "pdfjs-dist/legacy/web/pdf_viewer.mjs";
+import { EventBus, PDFLinkService, PDFViewer, RenderingStates } from "pdfjs-dist/legacy/web/pdf_viewer.mjs";
 import "pdfjs-dist/legacy/web/pdf_viewer.css";
 import type { PdfZoom } from "../../domain/pdf";
 import type { PdfDisplay, PdfDisplayFactory } from "../../presentation/pdf/PdfDisplay";
+import { preRenderPages } from "./preRender";
 
 GlobalWorkerOptions.workerSrc = workerUrl;
 
@@ -21,11 +22,115 @@ const assetUrl = (dir: string) => new URL(`/pdfjs/${dir}/`, window.location.href
 /** Longest wait for the new layer's first page before swapping anyway. */
 const SWAP_TIMEOUT_MS = 800;
 
+/**
+ * Pages drawn ahead of the viewport in the scroll direction (and behind it). pdf.js on its
+ * own draws the visible pages plus one, so a trackpad flick lands on blank pages that pop
+ * in. (Same numbers as pretty-markdown, measured there.)
+ */
+const PRERENDER_AHEAD = 4;
+const PRERENDER_BEHIND = 1;
+const PRERENDER_DELAY_MS = 100;
+
+/** The slice of PDFViewer's semi-internal API the pre-drawing uses; pdfjs-dist is pinned. */
+interface VisiblePage {
+  readonly id: number;
+  readonly view: { readonly renderingState: number };
+}
+interface VisiblePages {
+  readonly first: VisiblePage;
+  readonly last: VisiblePage;
+  readonly views: readonly VisiblePage[];
+  readonly ids: Set<number>;
+}
+interface ViewerInternals {
+  _getVisiblePages(): VisiblePages;
+  readonly renderingQueue: { renderHighestPriority(pages?: VisiblePages): void };
+  getPageView(index: number): { readonly renderingState: number } | undefined;
+  readonly pagesCount: number;
+  readonly _pages: readonly {
+    readonly id: number;
+    readonly renderingState: number;
+    readonly canvas?: HTMLCanvasElement | null;
+    reset(): void;
+  }[];
+}
+
+/**
+ * Draws pages ahead of the scroll whenever pdf.js has nothing more urgent, through its own
+ * rendering queue, and frees pages far from the view so memory stays bounded.
+ */
+function keepPagesAhead(element: HTMLDivElement, viewer: PDFViewer, eventBus: EventBus): () => void {
+  const internals = viewer as unknown as ViewerInternals;
+  let lastTop = element.scrollTop;
+  let down = true;
+  let timer = 0;
+
+  const preRender = () => {
+    timer = 0;
+    const top = element.scrollTop;
+    if (top !== lastTop) down = top > lastTop;
+    lastTop = top;
+    const visible = internals._getVisiblePages();
+    if (visible.views.length === 0) return;
+    if (visible.views.some((v) => v.view.renderingState !== RenderingStates.FINISHED)) return;
+    const count = internals.pagesCount;
+    const pages: VisiblePage[] = [];
+    for (const id of preRenderPages(visible.first.id, visible.last.id, count, down, PRERENDER_AHEAD, PRERENDER_BEHIND)) {
+      const view = internals.getPageView(id - 1);
+      if (view?.renderingState === RenderingStates.RUNNING) return; // one at a time
+      if (view && (view.renderingState === RenderingStates.INITIAL || view.renderingState === RenderingStates.PAUSED)) {
+        pages.push({ id, view });
+      }
+    }
+    if (pages.length === 0) return;
+    internals.renderingQueue.renderHighestPriority({
+      first: pages[0],
+      last: pages[0],
+      views: pages,
+      ids: new Set(pages.map((p) => p.id)),
+    });
+  };
+  const schedule = () => {
+    if (!timer) timer = window.setTimeout(preRender, PRERENDER_DELAY_MS);
+  };
+
+  // Keep drawn pages to the view plus the drawing-ahead window (only the view right after
+  // a zoom, when pdf.js would keep every old canvas stretched until redrawn).
+  const trim = (viewOnly: boolean) => {
+    const visible = internals._getVisiblePages();
+    if (visible.views.length === 0) return;
+    const ahead = viewOnly ? 0 : PRERENDER_AHEAD;
+    const behind = viewOnly ? 0 : PRERENDER_BEHIND;
+    const from = visible.first.id - (down ? behind : ahead);
+    const to = visible.last.id + (down ? ahead : behind);
+    for (const page of internals._pages) {
+      const drawn = page.renderingState !== RenderingStates.INITIAL || page.canvas;
+      if (drawn && (page.id < from || page.id > to)) page.reset();
+    }
+  };
+  const onRendered = () => {
+    trim(false);
+    schedule();
+  };
+  const onScale = () => trim(true);
+
+  eventBus.on("pagerendered", onRendered);
+  eventBus.on("scalechanging", onScale);
+  element.addEventListener("scroll", schedule, { passive: true });
+  return () => {
+    clearTimeout(timer);
+    eventBus.off("pagerendered", onRendered);
+    eventBus.off("scalechanging", onScale);
+    element.removeEventListener("scroll", schedule);
+  };
+}
+
 type Layer = {
   element: HTMLDivElement;
   viewer: PDFViewer;
   eventBus: EventBus;
   pdf: PDFDocumentProxy;
+  stopPreRender: () => void;
 };
 
 /** Where the reader is: the page at the top, and how far down it (0–1). */
@@ -44,8 +149,10 @@ export const mountPdfJs: PdfDisplayFactory = async (container, options) => {
     });
   };
 
+  // "Fit" is pdf.js's "auto": the pane's width, but at most 125%, so the expanded
+  // full-window view shows a readable page rather than a giant one.
   const applyZoom = (layer: Layer) => {
-    layer.viewer.currentScaleValue = zoom === "page-width" ? "page-width" : String(zoom);
+    layer.viewer.currentScaleValue = zoom === "page-width" ? "auto" : String(zoom);
   };
 
   const pageBox = (layer: Layer, index: number) => {
@@ -67,12 +174,13 @@ export const mountPdfJs: PdfDisplayFactory = async (container, options) => {
   };
 
   const destroyLayer = (layer: Layer) => {
+    layer.stopPreRender();
     layer.viewer.setDocument(null as unknown as PDFDocumentProxy);
     void layer.pdf.loadingTask.destroy();
     layer.element.remove();
   };
 
-  // Keep "fit width" fitted when the pane is resized (dragging its edge, the window).
+  // Keep "fit" fitted when the pane is resized (its edge, the window, expanding).
   const resize = new ResizeObserver(() => {
     if (shown && zoom === "page-width") applyZoom(shown);
   });
@@ -97,6 +205,8 @@ export const mountPdfJs: PdfDisplayFactory = async (container, options) => {
 
       const element = document.createElement("div");
       element.className = "pdf-layer pdf-layer-loading";
+      // Focusable, so arrow keys and space scroll it (the expanded view focuses it).
+      element.tabIndex = -1;
       const viewerElement = document.createElement("div");
       viewerElement.className = "pdfViewer";
       element.appendChild(viewerElement);
@@ -106,7 +216,7 @@ export const mountPdfJs: PdfDisplayFactory = async (container, options) => {
       const linkService = new PDFLinkService({ eventBus });
       const viewer = new PDFViewer({ container: element, viewer: viewerElement, eventBus, linkService });
       linkService.setViewer(viewer);
-      const layer: Layer = { element, viewer, eventBus, pdf };
+      const layer: Layer = { element, viewer, eventBus, pdf, stopPreRender: keepPagesAhead(element, viewer, eventBus) };
 
       const spot = shown ? spotOf(shown) : { page: 1, offset: 0 };
       const ready = new Promise<void>((resolve) => {

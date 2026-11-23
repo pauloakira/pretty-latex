@@ -379,6 +379,45 @@ button {
   opacity: 0.6;
 }
 
+/* Expanded (⇧⌘\): the PDF takes the workspace; tree and editor stay mounted, hidden. */
+.workspace-pdf-expanded > :not(.pdf-pane) {
+  display: none;
+}
+
+.pdf-pane-expanded {
+  flex: 1;
+  width: auto;
+  border-left: 0;
+}
+
+.pdf-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.icon-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 21px;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--text-faint);
+  cursor: default;
+}
+
+.icon-button:hover {
+  color: var(--text);
+  background: var(--glass-panel);
+}
+
+.pill-button svg {
+  align-self: center;
+}
+
 .pdf-name {
   overflow: hidden;
   text-overflow: ellipsis;
@@ -433,6 +472,7 @@ button {
   position: absolute;
   inset: 0;
   overflow: auto;
+  overscroll-behavior: contain;
 }
 
 .pdf-layer-loading {
@@ -443,13 +483,12 @@ button {
   padding: 4px 0 24px;
 }
 
-/* Paper on the darker glass (design B1): no pdf.js border, a soft drop shadow. */
+/* Paper on the darker glass (design B1): no pdf.js border, a small shadow. A large
+   blurred shadow or rounded clipping on every page made scrolling repaint heavily. */
 .pdf-layer .pdfViewer .page {
   border: 0;
   margin: 12px auto;
-  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5);
-  border-radius: 3px;
-  overflow: hidden;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.45);
 }
 
 .pdf-overlay {

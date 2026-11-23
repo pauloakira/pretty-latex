@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { basename } from "../../domain/project";
 import { percent, stepZoom, type PdfView, type PdfZoom } from "../../domain/pdf";
+import { CollapseIcon, ExpandIcon } from "../shell/icons";
 import type { PdfDisplay, PdfDisplayFactory } from "./PdfDisplay";
 
 type Props = {
@@ -11,13 +12,16 @@ type Props = {
   readBytes: (path: string) => Promise<Uint8Array>;
   createDisplay: PdfDisplayFactory;
   onHide: () => void;
+  /** The PDF fills the window. */
+  expanded: boolean;
+  onToggleExpanded: () => void;
 };
 
 /**
  * The PDF column (design B1): the built PDF on a darker backdrop, with the page count,
  * zoom −/+ and fit width in the bar. Reloads after every build in place.
  */
-export function PdfPane({ path, version, readBytes, createDisplay, onHide }: Props) {
+export function PdfPane({ path, version, readBytes, createDisplay, onHide, expanded, onToggleExpanded }: Props) {
   const host = useRef<HTMLDivElement>(null);
   const display = useRef<Promise<PdfDisplay> | null>(null);
   const [zoom, setZoom] = useState<PdfZoom>("page-width");
@@ -63,7 +67,7 @@ export function PdfPane({ path, version, readBytes, createDisplay, onHide }: Pro
   const scale = view?.scale ?? 1;
 
   return (
-    <section className="pdf-pane" aria-label="PDF preview">
+    <section className={expanded ? "pdf-pane pdf-pane-expanded" : "pdf-pane"} aria-label="PDF preview">
       <div className="pdf-bar">
         <span className="pdf-name">{path ? basename(path) : "pdf"}</span>
         {view && (
@@ -88,9 +92,28 @@ export function PdfPane({ path, version, readBytes, createDisplay, onHide }: Pro
             </button>
           </span>
         )}
-        <button type="button" className="pill-button" onClick={onHide}>
-          hide <kbd>⌘\</kbd>
-        </button>
+        <span className="pdf-actions">
+          {expanded ? (
+            <button type="button" className="pill-button" onClick={onToggleExpanded} title="⇧⌘\ or Esc">
+              <CollapseIcon /> Exit full screen
+            </button>
+          ) : (
+            <>
+              <button
+                type="button"
+                className="icon-button"
+                aria-label="Expand PDF"
+                title="Expand PDF (⇧⌘\)"
+                onClick={onToggleExpanded}
+              >
+                <ExpandIcon />
+              </button>
+              <button type="button" className="pill-button" onClick={onHide}>
+                hide <kbd>⌘\</kbd>
+              </button>
+            </>
+          )}
+        </span>
       </div>
       <div className="pdf-stage">
         <div className="pdf-host" ref={host} />

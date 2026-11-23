@@ -364,3 +364,36 @@ describe("PDF preview", () => {
     expect(q('[role="separator"][aria-label="Resize PDF"]')).not.toBeNull();
   });
 });
+
+describe("expanded PDF", () => {
+  const expanded = () => q(".workspace")?.classList.contains("workspace-pdf-expanded");
+
+  it("fills the window from the expand button or ⇧⌘\\, and Esc brings the editor back", async () => {
+    await mount();
+    act(() => button("Expand PDF")?.click());
+    expect(expanded()).toBe(true);
+    expect(q(".pdf-pane")?.textContent).toContain("Exit full screen");
+    // The editor stays mounted (its undo history survives) and lets go of the keyboard.
+    expect(q(".cm-editor")).not.toBeNull();
+    expect(document.activeElement?.closest(".cm-editor")).toBeNull();
+
+    act(() => {
+      window.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }));
+    });
+    expect(expanded()).toBe(false);
+    expect(document.activeElement?.closest(".cm-editor")).not.toBeNull();
+
+    await press("|", { shiftKey: true });
+    expect(expanded()).toBe(true);
+    await press("|", { shiftKey: true });
+    expect(expanded()).toBe(false);
+  });
+
+  it("leaves the expanded view when the PDF is hidden", async () => {
+    await mount();
+    act(() => button("Expand PDF")?.click());
+    await press("\\");
+    expect(expanded()).toBe(false);
+    expect(q('[aria-label="PDF preview"]')).toBeNull();
+  });
+});
