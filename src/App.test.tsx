@@ -5,6 +5,8 @@ import { afterEach, describe, expect, it } from "vitest";
 import App from "./App";
 import type { Session } from "./domain/project";
 import { memoryFiles } from "./test/memoryFiles";
+import { scriptedBuilder } from "./test/scriptedBuilder";
+import { BUILD_DEBOUNCE_MS } from "./presentation/workspace/useBuild";
 
 // Tell React this is a test environment so act() works without warnings.
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -36,12 +38,21 @@ const press = async (key: string, mods: { shiftKey?: boolean } = {}) => {
   await settle();
 };
 
+/** Wait out the build debounce, then let the build settle. */
+const afterBuild = async () => {
+  await act(() => new Promise((resolve) => setTimeout(resolve, BUILD_DEBOUNCE_MS + 20)));
+  await settle();
+};
+
+let builds = scriptedBuilder();
+
 async function mount(disk: Record<string, string> = {}, session: Session | null = null) {
   const fake = memoryFiles(disk, session);
+  builds = scriptedBuilder();
   container = document.createElement("div");
   document.body.appendChild(container);
   root = createRoot(container);
-  act(() => root.render(<App files={fake.files} />));
+  act(() => root.render(<App files={fake.files} builder={builds.builder} />));
   await settle();
   return fake;
 }
@@ -219,5 +230,73 @@ describe("files and tabs", () => {
     state.nextFile = "/missing.tex";
     await press("o");
     expect(q(".statusline-error")?.textContent).toContain("/missing.tex");
+  });
+});
+
+describe("building", () => {
+  const badge = () => q('[aria-label="Build status"]')?.textContent;
+  const status = () => q(".statusline")?.textContent;
+  const openMain = async (text = "\\documentclass{article}\n") => {
+    const fake = await mount({ "/p/main.tex": text });
+    fake.state.nextFile = "/p/main.tex";
+    await press("o");
+    return fake;
+  };
+
+  it("builds the file with ⌘S and shows how long it took", async () => {
+    await openMain();
+    await press("s");
+    expect(badge()).toContain("building");
+    await afterBuild();
+    expect(builds.builder.build).toHaveBeenCalledWith("/p/main.tex");
+    expect(badge()).toContain("built 1.2s");
+  });
+
+  it("makes one build of saves close together", async () => {
+    await openMain();
+    await press("s");
+    await press("s");
+    await afterBuild();
+    expect(builds.builder.build).toHaveBeenCalledTimes(1);
+  });
+
+  it("shows errors in the badge, the status line and the gutter", async () => {
+    await openMain("\\documentclass{article}\n\\begin{document}\n\\oops\n");
+    builds.state.next = {
+      kind: "done",
+      ok: false,
+      seconds: 0.4,
+      pdf: null,
+      diagnostics: [
+        { file: "/p/main.tex", line: 3, severity: "error", message: "Undefined control sequence." },
+        { file: "/p/other.tex", line: 1, severity: "warning", message: "Elsewhere" },
+      ],
+    };
+    await press("s");
+    await afterBuild();
+    expect(badge()).toContain("1 error");
+    expect(status()).toContain("main.tex:3 Undefined control sequence.");
+    expect(container.querySelectorAll(".cm-lint-marker-error")).toHaveLength(1);
+    expect(container.querySelectorAll(".cm-lint-marker-warning")).toHaveLength(0);
+  });
+
+  it("says so when TeX isn't installed", async () => {
+    await openMain();
+    builds.state.error = new Error("TeX not found: install MacTeX");
+    await press("s");
+    await afterBuild();
+    expect(badge()).toContain("no TeX");
+    expect(status()).toContain("TeX not found: install MacTeX");
+  });
+
+  it("builds the project's main.tex after saving a chapter", async () => {
+    const fake = await mount({ "/p/main.tex": "\\documentclass{book}", "/p/ch1.tex": "\\chapter{One}" });
+    fake.state.nextFolder = "/p";
+    await press("o", { shiftKey: true });
+    fake.state.nextFile = "/p/ch1.tex";
+    await press("o");
+    await press("s");
+    await afterBuild();
+    expect(builds.builder.build).toHaveBeenCalledWith("/p/main.tex");
   });
 });

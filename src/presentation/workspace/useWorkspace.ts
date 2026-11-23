@@ -11,9 +11,9 @@ const message = (error: unknown) => (error instanceof Error ? error.message : St
 /**
  * Open documents, the open folder and the session, plus the file commands behind the
  * shortcuts. Restores the last project and tabs on mount, and saves the session whenever
- * the open files change.
+ * the open files change. `onSaved` runs after every successful write (it starts a build).
  */
-export function useWorkspace(files: Files) {
+export function useWorkspace(files: Files, onSaved?: (path: string, text: string) => void) {
   const [documents, dispatch] = useReducer(documentsReducer, noDocuments);
   const [project, setProject] = useState<Project | null>(null);
   const [notice, setNotice] = useState<Notice | null>(null);
@@ -24,6 +24,8 @@ export function useWorkspace(files: Files) {
   docsRef.current = documents;
   const projectRef = useRef<Project | null>(project);
   projectRef.current = project;
+  const onSavedRef = useRef(onSaved);
+  onSavedRef.current = onSaved;
 
   // "saved …" is a passing note; errors stay until the next success.
   useEffect(() => {
@@ -143,6 +145,7 @@ export function useWorkspace(files: Files) {
       try {
         await files.writeText(path, text);
         dispatch({ type: "saved", key, path, text });
+        onSavedRef.current?.(path, text);
         setNotice({ text: `saved ${doc.path === path ? doc.title : path}`, tone: "info" });
         const root = projectRef.current?.root;
         if (root && path.startsWith(`${root}/`) && doc.path !== path) await refreshTree();

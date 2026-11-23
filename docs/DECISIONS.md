@@ -46,3 +46,22 @@ the Mac App Store. Distribution is a signed, notarized `.dmg`, like pretty-markd
   a fresh state.
 - **The session** (`session.json` in the app's config folder) stores the open folder, the
   saved tabs and the active one. Unsaved new files aren't restored.
+
+## D3 — Builds: latexmk on save, output in build/ (2026-11-22)
+
+- **⌘S builds.** Every successful save starts a build 250 ms later; saves closer together
+  make one build. Starting a build stops the running one (SIGTERM to latexmk's process
+  group, so pdflatex and biber stop too), and its result is dropped.
+- **Which file builds:** a `% !TEX root = …` line wins; else a file with `\documentclass`
+  builds itself; else (a chapter, a `.bib`) the project's `main.tex`; else a lone `.tex`
+  builds itself.
+- **Engine:** `latexmk -pdf` by default; `% !TEX program = xelatex|lualatex` switches it.
+  Runs with `-interaction=nonstopmode -halt-on-error -file-line-error -synctex=1
+  -outdir=build`, and `max_print_line=10000` so log lines don't wrap.
+- **Finding TeX:** apps started from Finder don't get the shell's PATH, so we look on the
+  PATH and then in `/Library/TeX/texbin` (MacTeX), Homebrew, `/usr/local/bin` and TinyTeX.
+  Without latexmk the badge says "no TeX" and the status line says what to install.
+- **Diagnostics:** errors come from `file:line:` log lines; LaTeX/package warnings from
+  "on input line N", put on the main file since the log doesn't say which file. Shown as
+  gutter dots and wavy underlines (CodeMirror lint), the count in the badge and the first
+  error in the status line.

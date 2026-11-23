@@ -75,6 +75,35 @@ const glassTheme = EditorView.theme(
       fontFamily: "var(--mono)",
     },
     ".cm-panel.cm-search [name=close]": { color: "var(--text-dim)" },
+
+    // Build errors and warnings (latexmk): a dot in the gutter, a wavy line, a glass tooltip.
+    ".cm-gutter-lint": { width: "12px" },
+    ".cm-gutter-lint .cm-gutterElement": { padding: "0" },
+    ".cm-lint-marker": { width: "8px", height: "8px", borderRadius: "50%", marginTop: "8px", backgroundImage: "none" },
+    ".cm-lint-marker-error": { backgroundColor: "var(--error)" },
+    ".cm-lint-marker-warning": { backgroundColor: "var(--warn)" },
+    ".cm-lintRange-error": {
+      backgroundImage: "none",
+      textDecoration: "underline wavy var(--error)",
+      textUnderlineOffset: "4px",
+    },
+    ".cm-lintRange-warning": {
+      backgroundImage: "none",
+      textDecoration: "underline wavy var(--warn)",
+      textUnderlineOffset: "4px",
+    },
+    ".cm-tooltip": {
+      backgroundColor: "rgba(20, 26, 45, 0.95)",
+      border: "1px solid var(--hairline)",
+      borderRadius: "6px",
+      color: "var(--text)",
+      fontFamily: "var(--mono)",
+      fontSize: "12px",
+    },
+    ".cm-diagnostic": { padding: "4px 10px", borderLeftWidth: "3px" },
+    ".cm-diagnostic-error": { borderLeftColor: "var(--error)" },
+    ".cm-diagnostic-warning": { borderLeftColor: "var(--warn)" },
+    ".cm-diagnosticSource": { color: "var(--text-faint)" },
   },
   { dark: true },
 );
