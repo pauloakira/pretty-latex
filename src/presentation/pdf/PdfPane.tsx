@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { basename } from "../../domain/project";
 import { percent, stepZoom, type PdfView, type PdfZoom } from "../../domain/pdf";
+import type { PdfSpot } from "../../domain/synctex";
 import { CollapseIcon, ExpandIcon } from "../shell/icons";
 import type { PdfDisplay, PdfDisplayFactory } from "./PdfDisplay";
 
@@ -15,13 +16,27 @@ type Props = {
   /** The PDF fills the window. */
   expanded: boolean;
   onToggleExpanded: () => void;
+  /** ⌘-click on a page (inverse search): the point, in PDF points from the top-left. */
+  onSyncClick?: (page: number, x: number, y: number) => void;
+  /** A spot to scroll to and highlight (forward search); the nonce repeats a jump. */
+  reveal?: { spot: PdfSpot; nonce: number } | null;
 };
 
 /**
  * The PDF column (design B1): the built PDF on a darker backdrop, with the page count,
  * zoom −/+ and fit width in the bar. Reloads after every build in place.
  */
-export function PdfPane({ path, version, readBytes, createDisplay, onHide, expanded, onToggleExpanded }: Props) {
+export function PdfPane({
+  path,
+  version,
+  readBytes,
+  createDisplay,
+  onHide,
+  expanded,
+  onToggleExpanded,
+  onSyncClick,
+  reveal,
+}: Props) {
   const host = useRef<HTMLDivElement>(null);
   const display = useRef<Promise<PdfDisplay> | null>(null);
   const [zoom, setZoom] = useState<PdfZoom>("page-width");
@@ -29,11 +44,17 @@ export function PdfPane({ path, version, readBytes, createDisplay, onHide, expan
   const [error, setError] = useState<string | null>(null);
   const zoomRef = useRef(zoom);
   zoomRef.current = zoom;
+  const onSyncClickRef = useRef(onSyncClick);
+  onSyncClickRef.current = onSyncClick;
 
   // One display for the pane's lifetime.
   useEffect(() => {
     if (!host.current) return;
-    const created = createDisplay(host.current, { zoom: zoomRef.current, onView: setView });
+    const created = createDisplay(host.current, {
+      zoom: zoomRef.current,
+      onView: setView,
+      onSyncClick: (page, x, y) => onSyncClickRef.current?.(page, x, y),
+    });
     display.current = created;
     return () => {
       display.current = null;
@@ -59,6 +80,12 @@ export function PdfPane({ path, version, readBytes, createDisplay, onHide, expan
       cancelled = true;
     };
   }, [path, version, readBytes]);
+
+  useEffect(() => {
+    if (!reveal) return;
+    void display.current?.then((d) => d.reveal(reveal.spot));
+    // The nonce makes the same spot jump again.
+  }, [reveal?.nonce]);
 
   const changeZoom = (next: PdfZoom) => {
     setZoom(next);

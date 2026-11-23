@@ -1,9 +1,11 @@
 //! Rust core of pretty-latex: the glass window, the file commands in `files`, the
-//! latexmk build in `latex`, commit/push in `git` and several windows in `windows`.
+//! latexmk build in `latex`, jumping between source and PDF in `synctex`, commit/push in
+//! `git` and several windows in `windows`.
 
 mod files;
 mod git;
 mod latex;
+mod synctex;
 mod windows;
 
 use tauri::Manager;
@@ -63,6 +65,8 @@ pub fn run() {
             windows::focus_project_window,
             windows::take_pending_files,
             latex::build_latex,
+            synctex::synctex_forward,
+            synctex::synctex_inverse,
             git::git_status,
             git::git_commit,
             git::git_push,

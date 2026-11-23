@@ -38,6 +38,11 @@ const glassTheme = EditorView.theme(
     },
     ".cm-lineNumbers .cm-gutterElement": { minWidth: "28px", textAlign: "right" },
     ".cm-activeLine": { backgroundColor: "rgba(255, 255, 255, 0.04)" },
+    // The line a ⌘-click in the PDF jumped to (design: "L14 (synced)").
+    ".cm-synced-line, .cm-synced-line.cm-activeLine": {
+      backgroundColor: "rgba(126, 224, 195, 0.12)",
+      boxShadow: "inset 2px 0 0 rgba(126, 224, 195, 0.7)",
+    },
     ".cm-activeLineGutter": { backgroundColor: "transparent", color: "var(--text)" },
     ".cm-cursor, .cm-dropCursor": { borderLeftColor: "var(--accent)", borderLeftWidth: "2px" },
     "&.cm-focused > .cm-scroller > .cm-selectionLayer .cm-selectionBackground, .cm-selectionBackground":

@@ -20,6 +20,21 @@ GlobalWorkerOptions.workerSrc = workerUrl;
 /** pdf.js data files, served by the pdfjs-assets plugin in vite.config.ts. */
 const assetUrl = (dir: string) => new URL(`/pdfjs/${dir}/`, window.location.href).href;
 
+/** How long a forward-search highlight stays on the page. */
+const MARK_MS = 1800;
+
+/** The slice of a page view the SyncTeX mapping uses. */
+interface SyncPageView {
+  readonly div: HTMLElement;
+  /** Known for every page from the start (its page object loads only once drawn). */
+  readonly viewport: {
+    /** The page box in PDF space: [left, bottom, right, top]. */
+    readonly viewBox: number[];
+    convertToPdfPoint(x: number, y: number): number[];
+    convertToViewportPoint(x: number, y: number): number[];
+  };
+}
+
 /** Longest wait for the new layer's first page before swapping anyway. */
 const SWAP_TIMEOUT_MS = 800;
 
@@ -200,6 +215,25 @@ export const mountPdfJs: PdfDisplayFactory = async (container, options) => {
   });
   resize.observe(container);
 
+  // ⌘-click on a page: inverse search. Captured before pdf.js, so a ⌘-click on a link
+  // jumps to the source instead of opening the link.
+  const onClick = (event: MouseEvent) => {
+    if (!event.metaKey || !shown || !options.onSyncClick) return;
+    const pageDiv = (event.target as HTMLElement | null)?.closest<HTMLElement>(".page");
+    const number = Number(pageDiv?.dataset.pageNumber);
+    if (!pageDiv || !number) return;
+    const view = shown.viewer.getPageView(number - 1) as unknown as SyncPageView | undefined;
+    const box = view?.viewport.viewBox;
+    if (!view || !box) return;
+    event.preventDefault();
+    event.stopPropagation();
+    const rect = pageDiv.getBoundingClientRect();
+    const [ux, uy] = view.viewport.convertToPdfPoint(event.clientX - rect.left, event.clientY - rect.top);
+    // PDF space has its origin at the bottom-left; SyncTeX measures from the top-left.
+    options.onSyncClick(number, ux - box[0], box[3] - uy);
+  };
+  container.addEventListener("click", onClick, true);
+
   const display: PdfDisplay = {
     async show(bytes) {
       const id = ++loading;
@@ -288,6 +322,40 @@ export const mountPdfJs: PdfDisplayFactory = async (container, options) => {
       report(layer);
     },
 
+    reveal(spot) {
+      const layer = shown;
+      if (!layer) return;
+      const view = layer.viewer.getPageView(spot.page - 1) as unknown as SyncPageView | undefined;
+      const box = view?.viewport.viewBox;
+      if (!view || !box) return;
+      const [x1, y1] = view.viewport.convertToViewportPoint(box[0] + spot.x, box[3] - spot.y);
+      const [x2, y2] = view.viewport.convertToViewportPoint(
+        box[0] + spot.x + spot.width,
+        box[3] - spot.y - spot.height,
+      );
+      const left = Math.min(x1, x2);
+      const top = Math.min(y1, y2);
+      layer.element.querySelectorAll(".pdf-sync-mark").forEach((mark) => mark.remove());
+      const mark = document.createElement("div");
+      mark.className = "pdf-sync-mark";
+      // On the scrolling layer, over the page: pdf.js clears a page's own children
+      // whenever it redraws it.
+      Object.assign(mark.style, {
+        left: `${view.div.offsetLeft + left - 4}px`,
+        top: `${view.div.offsetTop + top - 3}px`,
+        width: `${Math.abs(x2 - x1) + 8}px`,
+        height: `${Math.abs(y2 - y1) + 6}px`,
+      });
+      layer.element.appendChild(mark);
+      setTimeout(() => mark.remove(), MARK_MS);
+      // A third of the way down the pane, so the lines before it give context.
+      layer.glide.stop();
+      layer.element.scrollTo({
+        top: Math.max(0, view.div.offsetTop + top - layer.element.clientHeight / 3),
+        behavior: "smooth",
+      });
+    },
+
     setZoom(next) {
       zoom = next;
       if (shown) applyZoom(shown);
@@ -295,6 +363,7 @@ export const mountPdfJs: PdfDisplayFactory = async (container, options) => {
 
     destroy() {
       loading++;
+      container.removeEventListener("click", onClick, true);
       resize.disconnect();
       if (shown) destroyLayer(shown);
       shown = null;
