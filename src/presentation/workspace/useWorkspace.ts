@@ -108,6 +108,19 @@ export function useWorkspace(files: Files, onSaved?: (path: string, text: string
     };
   }, [files, loadProject, openPath]);
 
+  // Tell the app which folder this window has: its title, and where Finder opens go.
+  const root = project?.root ?? null;
+  useEffect(() => {
+    files.setWindowProject(root).catch(() => undefined);
+  }, [files, root]);
+
+  /** Closes this window, asking first when files have unsaved changes. */
+  const closeWindow = useCallback(async () => {
+    const unsaved = docsRef.current.docs.filter(isDirty).length;
+    if (unsaved > 0 && !(await files.confirmCloseWindow(unsaved).catch(() => false))) return;
+    await files.closeWindow().catch(fail);
+  }, [files, fail]);
+
   // Save the session when the open folder, the saved tabs or the active one change.
   const tabPaths = documents.docs.flatMap((doc) => (doc.path ? [doc.path] : []));
   const activePath = activeDoc(documents)?.path ?? null;
@@ -123,10 +136,12 @@ export function useWorkspace(files: Files, onSaved?: (path: string, text: string
     if (path) await openPath(path);
   }, [files, fail, openPath]);
 
-  /** Resolves true when a folder was opened. */
+  /** Resolves true when a folder was opened here. */
   const openFolder = useCallback(async () => {
     const root = await files.pickFolder().catch(fail);
     if (!root) return false;
+    // Already open in another window: go there instead of opening it twice.
+    if (root !== projectRef.current?.root && (await files.focusProjectWindow(root).catch(() => false))) return false;
     try {
       await loadProject(root);
       setNotice(null);
@@ -201,5 +216,6 @@ export function useWorkspace(files: Files, onSaved?: (path: string, text: string
     save,
     saveAs,
     close,
+    closeWindow,
   };
 }

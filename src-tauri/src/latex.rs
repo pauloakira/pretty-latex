@@ -2,6 +2,7 @@
 //! build a newer one replaced, and turn the log into file + line diagnostics.
 
 use serde::Serialize;
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -20,12 +21,52 @@ const TEX_DIRS: &[&str] = &[
 /// Build output folder, next to the main file.
 const OUT_DIR: &str = "build";
 
-/// The running build, so a newer one can stop it.
+/// The running builds, one per main file, so a newer build of the same document can stop
+/// the old one while other documents (other windows) keep building.
 #[derive(Default)]
 pub struct Builds {
-    generation: AtomicU64,
-    /// Process group of the running latexmk (it starts pdflatex, biber, … as children).
-    running: Mutex<Option<u32>>,
+    next_id: AtomicU64,
+    /// Main file → (latest build id, process group of its latexmk once started). latexmk
+    /// starts pdflatex, biber, … as children, so the whole group is stopped.
+    running: Mutex<HashMap<String, (u64, Option<u32>)>>,
+}
+
+impl Builds {
+    /// Registers a new build of `main`, stopping the one it replaces. Returns its id.
+    fn begin(&self, main: &str) -> u64 {
+        let id = self.next_id.fetch_add(1, Ordering::SeqCst) + 1;
+        let replaced = self
+            .running
+            .lock()
+            .unwrap()
+            .insert(main.to_string(), (id, None));
+        if let Some((_, Some(group))) = replaced {
+            stop_group(group);
+        }
+        id
+    }
+
+    /// Records the started process; false when a newer build already replaced this one.
+    fn started(&self, main: &str, id: u64, group: u32) -> bool {
+        match self.running.lock().unwrap().get_mut(main) {
+            Some(entry) if entry.0 == id => {
+                entry.1 = Some(group);
+                true
+            }
+            _ => false,
+        }
+    }
+
+    /// Ends build `id` of `main`; false when a newer build replaced it.
+    fn finish(&self, main: &str, id: u64) -> bool {
+        let mut running = self.running.lock().unwrap();
+        if running.get(main).is_some_and(|entry| entry.0 == id) {
+            running.remove(main);
+            true
+        } else {
+            false
+        }
+    }
 }
 
 #[derive(Debug, Serialize, PartialEq, Clone)]
@@ -60,7 +101,8 @@ pub enum BuildOutcome {
     Cancelled,
 }
 
-/// Builds `main` (a .tex file) with latexmk. Starting a build stops the one before it.
+/// Builds `main` (a .tex file) with latexmk. Starting a build stops the running build of
+/// the same file; builds of other files carry on.
 #[tauri::command]
 pub async fn build_latex(
     state: tauri::State<'_, Builds>,
@@ -86,10 +128,7 @@ async fn build(state: &Builds, main: String) -> Result<BuildOutcome, String> {
     })?;
     let source = std::fs::read_to_string(&main_path).unwrap_or_default();
 
-    let generation = state.generation.fetch_add(1, Ordering::SeqCst) + 1;
-    if let Some(group) = state.running.lock().unwrap().take() {
-        stop_group(group);
-    }
+    let id = state.begin(&main);
 
     let mut command = Command::new(tex_dir.join("latexmk"));
     command
@@ -120,16 +159,18 @@ async fn build(state: &Builds, main: String) -> Result<BuildOutcome, String> {
     let child = command
         .spawn()
         .map_err(|e| format!("Couldn't start latexmk: {e}"))?;
-    *state.running.lock().unwrap() = Some(child.id());
+    if !state.started(&main, id, child.id()) {
+        // Replaced while starting: stop this one at once.
+        stop_group(child.id());
+    }
     let output = tauri::async_runtime::spawn_blocking(move || child.wait_with_output())
         .await
         .map_err(|e| e.to_string())?
         .map_err(|e| format!("latexmk failed: {e}"))?;
 
-    if state.generation.load(Ordering::SeqCst) != generation {
+    if !state.finish(&main, id) {
         return Ok(BuildOutcome::Cancelled);
     }
-    state.running.lock().unwrap().take();
 
     let stem = main_path
         .file_stem()
@@ -452,6 +493,19 @@ LaTeX Warning: There were undefined references.
             }
             BuildOutcome::Cancelled => panic!("not cancelled"),
         }
+    }
+
+    #[test]
+    fn a_new_build_replaces_only_the_same_document() {
+        let builds = Builds::default();
+        let a1 = builds.begin("/a/main.tex");
+        let b1 = builds.begin("/b/main.tex");
+        let a2 = builds.begin("/a/main.tex");
+        // The newer build of /a replaced the first; /b is untouched.
+        assert!(!builds.started("/a/main.tex", a1, 0));
+        assert!(!builds.finish("/a/main.tex", a1));
+        assert!(builds.finish("/b/main.tex", b1));
+        assert!(builds.finish("/a/main.tex", a2));
     }
 
     #[test]

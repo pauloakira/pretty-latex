@@ -98,3 +98,18 @@ the Mac App Store. Distribution is a signed, notarized `.dmg`, like pretty-markd
   changes aren't included, and the panel says so.
 - **Push** pushes the current branch; its first push sets the upstream on `origin` (or the
   only remote). A failed push after a good commit keeps the commit and says so.
+
+## D6 — Several windows, one project each (2026-11-23)
+
+- **⇧⌘N** opens a window (copied from the main window's config, cascaded from the focused
+  one, with the same glass). **⇧⌘W** closes one, asking first if files are unsaved.
+  Opening a folder that another window has open brings that window forward instead.
+- **Sessions per window:** `session.json` is `{"windows": {label: session}}`; the old
+  single-session file is read as the main window's. Closing a window forgets its session,
+  except when quitting or when it's the last window, so all windows come back on launch.
+  If main was closed, it takes over another window's session next launch.
+- **Builds per document:** a build stops only the running build of the same main file, so
+  two windows build independently.
+- **Finder opens** go to the window whose folder holds the file (the deepest if folders
+  nest), else the focused window. Each window listens to its own events only.
+- **Window titles** are "<folder> — pretty-latex" for the Window menu and Mission Control.

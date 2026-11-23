@@ -1,30 +1,20 @@
 //! Rust core of pretty-latex: the glass window, the file commands in `files`, the
-//! latexmk build in `latex` and commit/push in `git`. SyncTeX lands here in a later card.
+//! latexmk build in `latex`, commit/push in `git` and several windows in `windows`.
 
 mod files;
 mod git;
 mod latex;
+mod windows;
 
-use std::sync::Mutex;
-use tauri::{Emitter, Manager};
-
-/// Files the OS asked us to open (a double-clicked `.tex`) before the frontend was ready.
-/// The frontend drains them once on launch with `take_pending_files`.
-#[derive(Default)]
-struct PendingFiles(Mutex<Vec<String>>);
-
-#[tauri::command]
-fn take_pending_files(state: tauri::State<PendingFiles>) -> Vec<String> {
-    std::mem::take(&mut *state.0.lock().unwrap())
-}
+use tauri::Manager;
 
 /// Blur radius (in points) behind the window, like Terminal's "Blur" slider. Small enough
 /// that the wallpaper stays recognisable through the glass; the tint lives in CSS.
 #[cfg(target_os = "macos")]
-const WINDOW_BLUR_RADIUS: i32 = 24;
+pub(crate) const WINDOW_BLUR_RADIUS: i32 = 24;
 
 #[cfg(target_os = "macos")]
-mod glass {
+pub(crate) mod glass {
     use objc2::{msg_send, runtime::AnyObject};
     use std::ffi::c_void;
 
@@ -59,51 +49,51 @@ mod glass {
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
-        .manage(PendingFiles::default())
+        .manage(windows::Windows::default())
         .manage(latex::Builds::default())
         .invoke_handler(tauri::generate_handler![
             files::read_text_file,
             files::write_text_file,
             files::read_file_bytes,
             files::list_project,
-            files::read_session,
-            files::write_session,
+            windows::read_session,
+            windows::write_session,
+            windows::open_window,
+            windows::set_window_project,
+            windows::focus_project_window,
+            windows::take_pending_files,
             latex::build_latex,
             git::git_status,
             git::git_commit,
             git::git_push,
-            take_pending_files,
         ])
-        .setup(|_app| {
-            #[cfg(target_os = "macos")]
-            if let Some(window) = _app.get_webview_window("main") {
-                let ns_window = window.ns_window()?;
-                if !glass::set_background_blur(ns_window, WINDOW_BLUR_RADIUS) {
-                    eprintln!("pretty-latex: could not set the window blur; glass stays unblurred");
-                }
+        .setup(|app| {
+            if let Some(window) = app.get_webview_window(windows::MAIN) {
+                windows::apply_glass(&window);
             }
+            windows::restore_windows(app.handle());
             Ok(())
         })
         .build(tauri::generate_context!())
         .expect("error while building pretty-latex")
-        .run(|app, event| {
+        .run(|app, event| match event {
             // macOS hands over double-clicked files with this event, at launch and later.
-            if let tauri::RunEvent::Opened { urls } = event {
+            tauri::RunEvent::Opened { urls } => {
                 let paths: Vec<String> = urls
                     .iter()
                     .filter_map(|url| url.to_file_path().ok())
                     .map(|path| path.to_string_lossy().into_owned())
                     .collect();
-                if paths.is_empty() {
-                    return;
+                if !paths.is_empty() {
+                    windows::on_opened(app, paths);
                 }
-                // Queue them for a frontend that isn't listening yet, and tell one that is.
-                app.state::<PendingFiles>()
-                    .0
-                    .lock()
-                    .unwrap()
-                    .extend(paths.clone());
-                let _ = app.emit("open-files", paths);
             }
+            tauri::RunEvent::ExitRequested { .. } => windows::on_exit_requested(app),
+            tauri::RunEvent::WindowEvent {
+                label,
+                event: tauri::WindowEvent::Destroyed,
+                ..
+            } => windows::on_window_destroyed(app, &label),
+            _ => {}
         });
 }

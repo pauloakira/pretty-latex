@@ -1,5 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
-import { listen } from "@tauri-apps/api/event";
+import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { ask, open, save } from "@tauri-apps/plugin-dialog";
 import type { Files } from "../../domain/files";
 import { parseSession, type ProjectEntry, type Session } from "../../domain/project";
@@ -58,5 +58,20 @@ export const tauriFiles: Files = {
   saveSession: (session: Session) => call<void>("write_session", { contents: JSON.stringify(session) }),
 
   takePendingFiles: () => call<string[]>("take_pending_files"),
-  onOpenRequest: (handler) => listen<string[]>("open-files", (event) => handler(event.payload)),
+  // This window's events only: the app sends each file to the window that should open it.
+  onOpenRequest: (handler) =>
+    getCurrentWebviewWindow().listen<string[]>("open-files", (event) => handler(event.payload)),
+
+  openWindow: (folder) => call<void>("open_window", { folder }),
+  setWindowProject: (root) => call<void>("set_window_project", { root }),
+  focusProjectWindow: (root) => call<boolean>("focus_project_window", { root }),
+  confirmCloseWindow(unsaved) {
+    return ask(`${unsaved === 1 ? "A file has" : `${unsaved} files have`} unsaved changes. Close the window without saving?`, {
+      title: "Unsaved changes",
+      kind: "warning",
+      okLabel: "Don't Save",
+      cancelLabel: "Cancel",
+    });
+  },
+  closeWindow: () => getCurrentWebviewWindow().close(),
 };

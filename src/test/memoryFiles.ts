@@ -17,6 +17,9 @@ export function memoryFiles(initial: Record<string, string> = {}, session: Sessi
     discard: true,
     pending: [] as string[],
     openRequest: null as ((paths: string[]) => void) | null,
+    /** Another window that has this folder open. */
+    otherWindowRoot: null as string | null,
+    closeWindowAnswer: true,
   };
 
   const listProject = (root: string): ProjectEntry[] => {
@@ -63,6 +66,11 @@ export function memoryFiles(initial: Record<string, string> = {}, session: Sessi
         state.openRequest = null;
       };
     }),
+    openWindow: vi.fn(async (_folder: string | null) => undefined),
+    setWindowProject: vi.fn(async (_root: string | null) => undefined),
+    focusProjectWindow: vi.fn(async (root: string) => root === state.otherWindowRoot),
+    confirmCloseWindow: vi.fn(async (_unsaved: number) => state.closeWindowAnswer),
+    closeWindow: vi.fn(async () => undefined),
   } satisfies Files;
 
   return { files, disk, state };

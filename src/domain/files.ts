@@ -28,4 +28,14 @@ export interface Files {
   takePendingFiles(): Promise<string[]>;
   /** Subscribe to later open requests from the OS. Resolves to an unsubscribe function. */
   onOpenRequest(handler: (paths: string[]) => void): Promise<() => void>;
+
+  /** Opens another window, empty or on `folder`. */
+  openWindow(folder: string | null): Promise<void>;
+  /** Tells the app this window's open folder (its title, where Finder opens go). */
+  setWindowProject(root: string | null): Promise<void>;
+  /** Brings forward another window that has `root` open; false when none does. */
+  focusProjectWindow(root: string): Promise<boolean>;
+  /** Ask before closing a window that has unsaved changes. True means close anyway. */
+  confirmCloseWindow(unsaved: number): Promise<boolean>;
+  closeWindow(): Promise<void>;
 }
