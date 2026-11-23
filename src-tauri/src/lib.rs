@@ -1,7 +1,8 @@
-//! Rust core of pretty-latex: the glass window, and the file commands in `files`.
-//! Build (latexmk) and SyncTeX commands land here in later cards.
+//! Rust core of pretty-latex: the glass window, the file commands in `files` and the
+//! latexmk build in `latex`. SyncTeX lands here in a later card.
 
 mod files;
+mod latex;
 
 use std::sync::Mutex;
 use tauri::{Emitter, Manager};
@@ -58,12 +59,14 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .manage(PendingFiles::default())
+        .manage(latex::Builds::default())
         .invoke_handler(tauri::generate_handler![
             files::read_text_file,
             files::write_text_file,
             files::list_project,
             files::read_session,
             files::write_session,
+            latex::build_latex,
             take_pending_files,
         ])
         .setup(|_app| {

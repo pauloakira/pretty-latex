@@ -26,5 +26,9 @@ tauri-plugin-dialog = "2"
 [target.'cfg(target_os = "macos")'.dependencies]
 objc2 = "0.6"
 
+# Stopping a stale build signals latexmk's whole process group.
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"
+
 [dev-dependencies]
 tempfile = "3.27.0"
