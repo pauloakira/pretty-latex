@@ -1,7 +1,6 @@
 /*
- * Shell styles (design B · Split Glass). The font is SF Mono, as in the macOS Terminal
- * (the canvas uses JetBrains Mono); the full token set comes with the "Design tokens in
- * code" card.
+ * Shell styles (design B · Split Glass). The font is JetBrains Mono, as in the canvas
+ * and the user's iTerm; the full token set comes with the "Design tokens in code" card.
  */
 :root {
   /* Dark tint over the blurred desktop (blur radius is set natively in src-tauri/lib.rs). */
@@ -23,8 +22,9 @@
   --syn-math: #7ee0c3;
   --syn-brace: #f2c879;
   --syn-comment: #6f7a94;
-  /* SF Mono, the macOS Terminal font: ui-monospace is SF Mono in the webview. */
-  --mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, monospace;
+  /* iTerm's font (JetBrains Mono, Nerd Font build); plain JetBrains Mono, then SF Mono
+     (ui-monospace in the webview) where it isn't installed. */
+  --mono: "JetBrainsMono Nerd Font Mono", "JetBrains Mono", ui-monospace, Menlo, monospace;
   --titlebar-height: 40px;
   /* Room for the macOS traffic lights drawn over the title bar. */
   --traffic-lights-width: 84px;
