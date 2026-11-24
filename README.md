@@ -6,6 +6,8 @@ window, a monospace editor, and a live PDF beside it that you can hide.
 It deliberately does far less than VS Code or Overleaf. You open a folder, write, press ⌘S,
 and read the PDF.
 
+![pretty-latex: a LaTeX source file on the left, its built PDF on the right](docs/images/editor-and-pdf.jpg)
+
 ## Install
 
 ### Ask your AI coding agent (easiest)
@@ -59,6 +61,12 @@ Prerequisites, uninstalling and troubleshooting are in **[INSTALL.md](INSTALL.md
 - **Never loses work by accident.** Closing a window or quitting with unsaved files asks
   Save / Don't Save / Cancel.
 - **Native.** Double-click a `.tex` in Finder to open it. No account and no network access.
+
+## Screenshots
+
+| File tree open (⌘B) | PDF hidden (⌘\\) |
+|:---:|:---:|
+| ![The file tree open on the left of the editor](docs/images/file-tree.jpg) | ![The editor alone, with the PDF pane hidden](docs/images/pdf-hidden.jpg) |
 
 ## Keyboard shortcuts
 
