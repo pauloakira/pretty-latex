@@ -6,7 +6,7 @@ window, a monospace editor, and a live PDF beside it that you can hide.
 It deliberately does far less than VS Code or Overleaf. You open a folder, write, press ⌘S,
 and read the PDF.
 
-![pretty-latex: a LaTeX source file on the left, its built PDF on the right](docs/images/editor-and-pdf.webp)
+![pretty-latex: a LaTeX source file on the left, its built PDF on the right](docs/images/split-glass-default.webp)
 
 ## Install
 
@@ -66,7 +66,7 @@ Prerequisites, uninstalling and troubleshooting are in **[INSTALL.md](INSTALL.md
 
 | File tree open (⌘B) | PDF hidden (⌘\\) |
 |:---:|:---:|
-| ![The file tree open on the left of the editor](docs/images/file-tree.webp) | ![The editor alone, with the PDF pane hidden](docs/images/pdf-hidden.webp) |
+| ![The file tree open on the left of the editor](docs/images/split-glass-file-tree.webp) | ![The editor alone, with the PDF pane hidden](docs/images/split-glass-pdf-hidden.webp) |
 
 These images are design renderings of the layouts. The app follows them, though a few
 details, such as the citation preview, aren't built yet.
