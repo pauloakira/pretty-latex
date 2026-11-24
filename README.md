@@ -6,7 +6,7 @@ window, a monospace editor, and a live PDF beside it that you can hide.
 It deliberately does far less than VS Code or Overleaf. You open a folder, write, press ⌘S,
 and read the PDF.
 
-![pretty-latex: a LaTeX source file on the left, its built PDF on the right](docs/images/editor-and-pdf.jpg)
+![pretty-latex: a LaTeX source file on the left, its built PDF on the right](docs/images/editor-and-pdf.webp)
 
 ## Install
 
@@ -64,9 +64,9 @@ Prerequisites, uninstalling and troubleshooting are in **[INSTALL.md](INSTALL.md
 
 ## Screenshots
 
-| File tree open (⌘B) | PDF hidden (⌘\\) |
-|:---:|:---:|
-| ![The file tree open on the left of the editor](docs/images/file-tree.jpg) | ![The editor alone, with the PDF pane hidden](docs/images/pdf-hidden.jpg) |
+With the PDF hidden (⌘\\), the editor takes the whole window:
+
+![The editor alone, with the PDF pane hidden](docs/images/pdf-hidden.webp)
 
 ## Keyboard shortcuts
 
