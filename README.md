@@ -64,9 +64,12 @@ Prerequisites, uninstalling and troubleshooting are in **[INSTALL.md](INSTALL.md
 
 ## Screenshots
 
-With the PDF hidden (⌘\\), the editor takes the whole window:
+| File tree open (⌘B) | PDF hidden (⌘\\) |
+|:---:|:---:|
+| ![The file tree open on the left of the editor](docs/images/file-tree.webp) | ![The editor alone, with the PDF pane hidden](docs/images/pdf-hidden.webp) |
 
-![The editor alone, with the PDF pane hidden](docs/images/pdf-hidden.webp)
+These images are design renderings of the layouts. The app follows them, though a few
+details, such as the citation preview, aren't built yet.
 
 ## Keyboard shortcuts
 
